@@ -141,9 +141,10 @@
 					const children=sel.profiles.filter(p=>p.typeName===parent.name);
 					
 					children.forEach(child=>{
-						ability.subAbilities.push({
-							name:child.name||"Unnamed Sub-Ability",
-							description: child.characteristics?.map(c=>c.$text).join(" ")||""
+						parent.description += `\n• ${child.description}`;
+						<!-- ability.subAbilities.push({ -->
+							<!-- name:child.name||"Unnamed Sub-Ability", -->
+							<!-- description: child.characteristics?.map(c=>c.$text).join(" ")||"" -->
 						});
 					});
 					
