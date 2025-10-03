@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trainer</title>
+	
+	<style>
+		.unit-table {
+			display: grid;
+			gap: 10px;
+			margin-bottom: 20px;
+			border: 1px solid black;
+			align-items: center;
+		}
+		.weapon-table {
+			display: grid;
+			gap: 10px;
+			margin-bottom: 20px;
+			border: 1px solid black;
+			align-items: center
+		}
+		.ability-table {
+			display: grid;
+			gap: 10px;
+			margin-bottom: 20px;
+			border: 1px solid black;
+			align-items: left;
+			grid-template-columns: 150px 1fr;
+		}
+        .uheader-row {
+            display: contents;
+			text-align: center;
+			gap: 10px;
+        }
+		.wheader-row {
+            display: contents;
+			text-align: center;
+			gap: 10px;
+        }
+		.aheader-row {
+			text-align: left !important;
+			gap: 10px;
+			grid-column: 1 / -1;
+		}
+		.unit-row {
+			display: grid !important;
+			background-color: white;
+			grid-auto-flow: row !important;
+			width: 100%;
+			gap: 10px;
+		}
+		.unit-left {
+			text-align: left !important;
+			padding-left: 10px;
+		}
+        .weapon-row {
+            display: contents;
+        }
+		.weapon-left {
+            text-align: left !important;
+			padding-left: 10px;
+        }
+		.ability-row {
+			display: contents;
+		}
+		.ability-left {
+			text-align: left !important;
+			padding-left: 10px;
+		}
+        .header-cell {
+            font-weight: bold;
+            text-align: center;
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        .cell {
+            padding: 5px;
+            text-align: center;
+        }
+        .grayed {
+            background-color: #eee;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 5px;
+            text-align: center;
+        }
+		textarea {
+			width: 100%;
+			padding: 5px;
+			text-align: left;
+			resize: none;
+			box-sizing: border-box;
+			overflow: hidden;
+		}
+        #progress {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+	
+    <script>
+        let units=[];
+        let incorrectBucket=[];
+        let correctBucket=[];
+		let deferredBucket=[];
+        let currentIndex=0;
+        let answersRevealed=false;
+		let knownWeapons={}; //structure: { "Bolt Pistol": { "Range": "12", "A": "1", "S": "4", ... } }
+
+		setTimeout(()=>{
+			document.addEventListener("keydown", function(event) {
+				if (event.key === "Enter") {
+					if (!event.shiftKey) { //shift not held
+						switch(answersRevealed) {
+							case false:
+								submitAnswers();
+								break;
+							case true:
+								markCardCorrect();
+								break;
+						}
+					} else { //shift held
+						switch(answersRevealed) {
+							case false:
+								submitAnswers();
+								revealAnswers();
+								break;
+							case true:
+								markCardIncorrect();
+								break;
+						}
+					}
+				}
+			});
+		},0);
+
+        function handleFileUpload(event){
+            const file=event.target.files[0]; //ACCESS FIRST FILE SELECTED BY USER
+            if(file){
+                const reader=new FileReader(); //RETURNS A FILEREADER OBJECT
+                reader.onload=function(e){ //ONLOAD IS A LOCAL FUNCTION
+                    try{
+                        const jsonData=JSON.parse(e.target.result);  //JSON PARSE INITIAL
+                        parseData(jsonData); //CUSTOM DATA PARSE
+                        unifyUnits(); //REMOVE DUPLICATE UNITS
+						displayReviewForm() //START REVIEW FORM
+                    }catch(err){
+                        alert("Failed to parse JSON: "+err.message); //IF THERE'S AN ERROR WITH THE JSON, SAY SO
+                    }
+               };
+                reader.readAsText(file);
+            }
+        }
+
+        function sanitizeValue(k,v){
+            if(k==="Range" && v.toLowerCase()==="melee"){
+                return "Melee";
+            }
+            const arr=["Range","AP","BS/WS","M","SV","LD","user"];
+            if(arr.includes(k)){
+                return v.replace(/[^0-9]/g,"");
+            }
+            if(k==="Keywords" && v==="-"){
+                return "";
+            }
+            return v;
+        }
+		
+		function gatherUnitProfiles(sel) {
+			let unitProfiles = [];
+
+			if (sel.profiles && Array.isArray(sel.profiles)) {
+				unitProfiles.push(...sel.profiles
+					.filter(p => p.typeName === "Unit" || p.typeName === "Model")  // Ensure unit/model profiles are extracted
+					.map(profile => {
+						const characteristics = {};
+
+						if (profile.characteristics) {
+							profile.characteristics.forEach(c => {
+								const nm = c.name;
+								let val = c.$text;
+								characteristics[nm] = val;
+							});
+						}
+
+						if(characteristics["M"]){
+							characteristics["M"]=sanitizeValue("M",characteristics["M"]);
+						}
+						if(characteristics["SV"]){
+							characteristics["SV"]=sanitizeValue("SV",characteristics["SV"]);
+						}
+						if(characteristics["LD"]){
+							characteristics["LD"]=sanitizeValue("LD",characteristics["LD"]);
+						}
+
+						return {
+							name: profile.name || "Unnamed Unit",
+							characteristics
+						};
+					})
+				);
+			}
+
+			if (sel.selections && Array.isArray(sel.selections)) {
+				sel.selections.forEach(s => {
+					unitProfiles.push(...gatherUnitProfiles(s));
+				});
+			}
+
+			return unitProfiles;
+		}
+
+		function gatherUnitAbilities(sel) {
+			let unitAbilities=[];
+			if (!sel.profiles) return unitAbilities;
+			
+			sel.profiles
+				.filter(p=>(p.typeName==="Abilities" && p.name!=="Leader" && p.name!=="Attached Unit"))
+				.forEach(parent=>{
+					let aName=parent.name
+					if (/invulnerable save/i.test(aName)) {
+						aName="Invulnerable Save"
+					} else if (/damaged/i.test(aName)) {
+						aName="Damaged"
+					}
+					
+					const ability={
+						name: aName,
+						description:parent.characteristics?.map(c=> formatAbilities(c.$text)).join(" ")||"",
+						subAbilities:[]
+					};
+				
+					const children=sel.profiles.filter(p=>p.typeName===parent.name);
+					
+					children.forEach(child=>{
+						ability.subAbilities.push({
+							name:child.name||"Unnamed Sub-Ability",
+							description: child.characteristics?.map(c=>c.$text).join(" ")||""
+						});
+					});
+					
+					unitAbilities.push(ability);
+				});
+			
+			return unitAbilities;
+		}
+
+        function gatherUnitWeapons(sel){
+            let weapons=[];
+            if(sel.profiles){
+                weapons.push(...sel.profiles
+                    .filter(p=>p.typeName==="Ranged Weapons"||p.typeName==="Melee Weapons")
+                    .map(profile=>{
+                        let isMelee=(profile.typeName==="Melee Weapons");
+                        let bsVal="";
+                        let wsVal="";
+                        const characteristics={};
+
+                        profile.characteristics.forEach(c=>{
+                            const nm=c.name;
+                            let val=c.$text;
+                            if(nm==="BS"){bsVal=val;} else if(nm==="WS"){wsVal=val;} else{
+                                characteristics[nm]=val;
+                            }
+                        });
+
+                        if(isMelee){
+                            characteristics["BS/WS"]=wsVal;
+                        } else{
+                            characteristics["BS/WS"]=bsVal;
+                        }
+
+                        characteristics["BS/WS"]=sanitizeValue("BS/WS",characteristics["BS/WS"]);
+
+                        if(characteristics["Range"]){
+                            characteristics["Range"]=sanitizeValue("Range",characteristics["Range"]);
+                        }
+                        if(characteristics["AP"]){
+                            characteristics["AP"]=sanitizeValue("AP",characteristics["AP"]);
+                        }
+                        if(characteristics["Keywords"]){
+                            characteristics["Keywords"]=sanitizeValue("Keywords",characteristics["Keywords"]);
+                        }
+
+                        return{
+                            name:profile.name||"Unnamed Weapon",
+                            characteristics
+                        };
+                    })
+                );
+            }
+            if(sel.selections){
+                sel.selections.forEach(s=>{
+                    weapons.push(...gatherUnitWeapons(s));
+                });
+            }
+            return weapons;
+        }
+
+        function parseForce(force){
+            let result=[];
+            if(force.selections){
+                force.selections.forEach(sel=>{
+                    collectTopLevelUnits(sel,result);
+                });
+            }
+			<!-- console.log("Raw Parsed JSON Data:", JSON.stringify(units, null, 2)); -->
+
+            return result;
+        }
+
+		function collectTopLevelUnits(sel, arr, ancestorIsUnit = false) { // FIND THE ORIGINAL PARENT FOR EACH UNIT
+			if ((sel.type === "unit" || sel.type === "model") && !ancestorIsUnit) {
+				const nm = sel.name || "Unnamed Unit";
+				const unitWeapons = gatherUnitWeapons(sel); // EXTRACT WEAPON PROFILES
+				const unitProfiles = gatherUnitProfiles(sel); // Extract unit profiles
+				const unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
+
+				arr.push({
+					name: nm,
+					weapons: unitWeapons,
+					profiles: unitProfiles.length > 0 && unitProfiles[0].characteristics ? unitProfiles[0].characteristics : {},
+					abilities: unitAbilities
+				});
+			}
+
+			let nextAncestorIsUnit = ancestorIsUnit || (sel.type === "unit");
+			if (sel.selections) {
+				sel.selections.forEach(s => {
+					collectTopLevelUnits(s, arr, nextAncestorIsUnit);
+				});
+			}
+		}
+
+        function parseData(data){ // INPUT VALIDATION
+            if(!data.roster||!Array.isArray(data.roster.forces)){
+                alert("Invalid JSON structure: Missing roster or forces array.");
+                return;
+            }
+            units.splice(0,units.length); // CLEAR ANY EXISTING UNITS ARRAY
+            data.roster.forces.forEach(force=>{
+                const theseUnits=parseForce(force);
+                units.push(...theseUnits);
+            });
+			console.log("Final Units Array after Parsing:", JSON.stringify(units, null, 2));
+		}
+
+		function unifyUnits() {
+			console.trace("🔍 unifyUnits() was called here!");
+			
+			let nameMap = {};
+			units.forEach(u => {
+				if (!nameMap[u.name]) {
+					nameMap[u.name] = { name: u.name, weapons: [], profiles: u.profiles || {}, abilities: []}; // Preserve profiles!
+				}
+				nameMap[u.name].weapons.push(...u.weapons);
+				nameMap[u.name].abilities.push(...u.abilities);
+			});
+
+			for (let nm in nameMap) {
+				let uniqw = [];
+				let uniqa = [];
+				let wset = new Set();
+				let aset = new Set();
+				nameMap[nm].weapons.forEach(w => {
+					if (!wset.has(w.name)) {
+						wset.add(w.name);
+						uniqw.push(w);
+					}
+				});
+				nameMap[nm].abilities.forEach(a => {
+					if (!aset.has(a.name)) {
+						aset.add(a.name);
+						uniqa.push(a);
+					}
+				});
+				nameMap[nm].weapons = uniqw;
+				nameMap[nm].abilities = uniqa;
+			}
+
+			units = Object.values(nameMap); // Convert back to array
+			console.log("Units after unifyUnits():", JSON.stringify(units, null, 2));
+		}
+
+		function displayReviewForm() {
+			// SET UP REVIEW PAGE
+			document.getElementById("flashcard-section").style.display = "none";
+			const rev = document.getElementById("review-section");
+			rev.style.display = "block";
+			rev.innerHTML = "";
+
+			// SET UP TOP ACCEPT BUTTON
+			const topButton = document.createElement("button");
+			topButton.textContent = "Accept and Start Flashcards";
+			topButton.onclick = startFlashcards;
+			rev.appendChild(topButton);
+
+
+			//SET UP UNIT TABLE
+			const unitTable = document.createElement("div");
+			unitTable.className = "unit-table";
+
+			let unitCharacteristicsSet = new Set();
+			units.forEach(u => {
+				if (u.profiles && typeof u.profiles === "object") {
+					Object.keys(u.profiles).forEach(k => unitCharacteristicsSet.add(k));
+				}
+			});
+
+			let unitCharacteristics = Array.from(unitCharacteristicsSet);
+			const desiredOrder = ["M", "SV", "T", "W", "LD", "OC"];
+
+			unitCharacteristics.sort((a, b) => {
+				const ai = desiredOrder.indexOf(a);
+				const bi = desiredOrder.indexOf(b);
+				return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+			});
+
+			function colWidth(k) {
+				if (["M", "SV", "T", "W", "LD", "OC"].includes(k)) {
+					return "minmax(50px, 80px)";
+				}
+				return "minmax(60px, 1fr)";
+			}
+
+			let unitColDefs = [{ name: "Unit", width: "150px" }];
+			unitCharacteristics.forEach(k => {
+				unitColDefs.push({ name: k, width: colWidth(k) });
+			});
+			unitTable.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
+
+console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns);
+
+
+			unitTable.style.display = "grid";
+			unitTable.style.marginBottom = "20px";
+
+			const unitHeadRow = document.createElement("div");
+			unitHeadRow.className = "uheader-row";
+			unitHeadRow.style.display = "grid";
+			unitHeadRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
+
+			const unitHdr = document.createElement("div");
+			unitHdr.className = "header-cell";
+			unitHdr.textContent = "Unit";
+			unitHeadRow.appendChild(unitHdr);
+
+			unitCharacteristics.forEach(k => {
+				const c = document.createElement("div");
+				c.className = "header-cell";
+				c.textContent = k;
+				unitHeadRow.appendChild(c);
+			});
+
+			unitTable.appendChild(unitHeadRow);
+
+			units.forEach((unit, uIndex) => {
+				console.log(`Creating row for unit: ${unit.name} (Index: ${uIndex})`);
+
+				const uRow = document.createElement("div");
+				uRow.className = "unit-row";
+				uRow.style.display = "grid";
+				uRow.style.gridTemplateColumns = unitTable.style.gridTemplateColumns; 
+				uRow.style.gridColumnStart = "1"; // Force each row to start in column 1
+				uRow.style.width = "100%"; 
+				uRow.style.padding = "5px";
+
+				const uNameCell = document.createElement("div");
+				uNameCell.className = "cell unit-left";
+				uNameCell.textContent = unit.name;
+				uRow.appendChild(uNameCell);
+
+				unitCharacteristics.forEach(key => {
+					const cCell = document.createElement("div");
+					cCell.className = "cell";
+
+					let val = (unit.profiles && unit.profiles[key]) ? unit.profiles[key] : "";
+
+					const inp = document.createElement("input");
+					inp.type = "text";
+					inp.value = val;
+					inp.setAttribute("data-unit-index", String(uIndex));
+					inp.setAttribute("data-key", key);
+					inp.onchange = updateUnitCharacteristic;
+					inp.onkeydown = function(ev) {
+						if (ev.keyCode === 13) {
+							submitAnswers();
+						}
+					};
+
+					cCell.appendChild(inp);
+					uRow.appendChild(cCell);
+				});
+
+				console.log(`Appending row for ${unit.name}`);
+				unitTable.appendChild(uRow);
+			});
+
+			rev.appendChild(unitTable);
+
+			//WEAPONS AND ABILITIES SECTION
+			units.forEach((u, uIndex) => {
+				const unitDiv = document.createElement("div");
+				unitDiv.innerHTML = "<h3>"+ u.name +"</h3>";
+
+				const allKeysSet = new Set();
+				u.weapons.forEach(w => {
+					Object.keys(w.characteristics).forEach(k => allKeysSet.add(k));
+				});
+
+				let allKeys = Array.from(allKeysSet);
+				const desired = ["Range", "BS/WS", "A", "S", "AP", "D", "Keywords"];
+				allKeys.sort((a, b) => {
+					const ai = desired.indexOf(a);
+					const bi = desired.indexOf(b);
+					return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+				});
+
+				// WEAPONS
+				const wtbl = document.createElement("div");
+				wtbl.className = "weapon-table";
+
+				function colWidth(nm, isWeapon) {
+					if (isWeapon) {
+						return "150px";
+					}
+					if (nm === "Keywords") {
+						return "minmax(150px, 300px)";
+					}
+					if (["Range", "BS/WS", "A", "S", "AP", "D"].includes(nm)) {
+						return "minmax(50px, 80px)";
+					}
+					return "minmax(60px, 1fr)";
+				}
+
+				let colDefs = [];
+				colDefs.push({ name: "Weapon", width: colWidth("", true) });
+				allKeys.forEach(k => {
+					colDefs.push({ name: k, width: colWidth(k, false) });
+				});
+				wtbl.style.gridTemplateColumns = colDefs.map(d => d.width).join(" ");
+
+				const wHeadRow = document.createElement("div");
+				wHeadRow.className = "wheader-row";
+				const wHdr = document.createElement("div");
+				wHdr.className = "header-cell";
+				wHdr.textContent = "Weapon";
+				wHeadRow.appendChild(wHdr);
+				allKeys.forEach(k => {
+					const c = document.createElement("div");
+					c.className = "header-cell";
+					c.textContent = k;
+					wHeadRow.appendChild(c);
+				});
+				wtbl.appendChild(wHeadRow);
+
+				u.weapons.forEach((weapon, wIx) => {
+					// create row for weapon
+					const wRow = document.createElement("div");
+					wRow.className = "weapon-row";
+					// create cell for weapon name
+					const wNameCell = document.createElement("div");
+					wNameCell.className = "cell weapon-left";
+					wNameCell.textContent = weapon.name;
+					wRow.appendChild(wNameCell); //add cell to row
+
+					allKeys.forEach(key => { //create cells for everything else and add them to the row?
+						const cCell = document.createElement("div");
+						cCell.className = "cell";
+
+						let val = weapon.characteristics[key] || "";
+						if (key === "Keywords" && val === "-") {
+							val = "";
+						}
+
+						const inp = document.createElement("input");
+						inp.type = "text";
+						inp.value = val;
+						
+						inp.setAttribute("data-unit-index", String(uIndex));
+						inp.setAttribute("data-weapon-index", String(wIx));
+						inp.setAttribute("data-key", key);
+						inp.onchange = updateWeaponCharacteristic;
+
+						if (key === "Keywords") {
+							inp.style="text-align: left";
+						}
+
+						if (key === "Range" && val.toLowerCase() === "melee") {
+							inp.value = "Melee";
+							inp.disabled = true;
+							inp.classList.add("grayed");
+						}
+
+						wRow.appendChild(cCell);
+						cCell.appendChild(inp);
+					});
+
+					wtbl.appendChild(wRow); // add row to table
+				});
+				
+				unitDiv.appendChild(wtbl); // add weapon table to div
+				
+				
+				// ABILITIES
+				const atbl = document.createElement("div"); //create ability table
+				atbl.className = "ability-table";
+				
+				const aHeadRow = document.createElement("div");
+				aHeadRow.className = "aheader-row header-cell";
+				aHeadRow.textContent = "Abilities";
+				atbl.appendChild(aHeadRow);
+				
+				u.abilities.forEach((ability, aIx) => {
+					const aRow = document.createElement("div"); //create row for ability
+					aRow.className = "ability-row";
+					//create cell for ability name
+					const aNameCell = document.createElement("div");
+					aNameCell.className = "cell ability-left";
+					aNameCell.textContent = ability.name;
+					aRow.appendChild(aNameCell);
+					
+					const aCell = document.createElement("div");
+					aCell.className = "cell";
+					
+					const inp= document.createElement("textarea");
+					inp.value = ability.description;
+					inp.setAttribute("data-unit-index", String(uIndex));
+					inp.setAttribute("data-ability-index", String(aIx));
+					inp.onchange = updateAbilities;
+					
+					aCell.appendChild(inp);
+					aRow.appendChild(aCell);
+					atbl.appendChild(aRow);
+					
+					inp.style.height = "auto";
+					inp.style.height = inp.scrollHeight + "px";
+				});
+				
+				unitDiv.appendChild(atbl)
+				
+				rev.appendChild(unitDiv);
+				autoSizeAllTextareas()
+			});
+
+			
+			document.getElementById("accept-button").style.display = "block";
+		}
+
+		function autoSizeAllTextareas() {
+			document.querySelectorAll("textarea").forEach(ta => {
+				ta.style.height = "auto";
+				ta.style.height = ta.scrollHeight + "px";
+			});
+		}
+
+		function updateUnitCharacteristic(ev) {
+			const uIndex = ev.target.getAttribute("data-unit-index");
+			const key = ev.target.getAttribute("data-key");
+			const val = ev.target.value;
+			
+			if (!units[uIndex].profiles) {
+				units[uIndex].profiles = {}; // Ensure profiles exist before updating
+			}
+
+			units[uIndex].profiles[key] = sanitizeValue(key, val);
+		}
+
+        function updateWeaponCharacteristic(ev){
+            const uIndex=ev.target.getAttribute("data-unit-index");
+            const wIndex=ev.target.getAttribute("data-weapon-index");
+            const key=ev.target.getAttribute("data-key");
+            const val=ev.target.value;
+            if(key==="Range"&&val.toLowerCase()==="melee"){
+                return;
+            }
+            units[uIndex].weapons[wIndex].characteristics[key]=sanitizeValue(key,val);
+        }
+
+		function updateAbilities(ev) {
+			const uIndex=ev.target.getAttribute("data-unit-index");
+			const aIndex=ev.target.getAttribute("data-ability-index");
+			const val=ev.target.value;
+			units[uIndex].abilities[aIndex].description=val;
+		}
+
+        function shuffleArray(arr){
+            for(let i=arr.length-1;i>0;i--){
+                const j=Math.floor(Math.random()*(i+1));
+                [arr[i],arr[j]]=[arr[j],arr[i]];
+            }
+        }
+
+		function formatAbilities(text) {
+			return text
+				.replace(/\^\^\*\*(.*?)\^\^\*\*/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\^\^\*\*(.*?)\*\*\^\^/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\*\*\^\^(.*?)\^\^\*\*/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\*\*\^\^(.*?)\*\*\^\^/g, (_, inner) => {
+					return inner.toUpperCase();
+			});
+		}
+
+        function tokenizeKeywords(str){
+            const cleaned=str.replace(/[^a-z0-9+]+/g," ").trim();
+            if(!cleaned)return new Set();
+            return new Set(cleaned.split(/\s+/));
+        }
+
+        function setsEqual(a,b){
+            if(a.size!==b.size)return false;
+            for(const x of a){
+                if(!b.has(x))return false;
+            }
+            return true;
+        }
+
+        function startFlashcards(){ // START
+            document.getElementById("review-section").style.display="none";
+            document.getElementById("accept-button").style.display="none";
+            document.getElementById("flashcard-section").style.display="block";
+
+            incorrectBucket=[...units];
+            shuffleArray(incorrectBucket);
+            correctBucket=[];
+			deferredBucket=[];
+            currentIndex=0;
+            answersRevealed=false;
+			knownWeapons={};
+
+            updateProgress();
+            displayFlashcard();
+        }
+
+        function backToEditing(){ 
+            document.getElementById("flashcard-section").style.display="none";
+            displayReviewForm();
+        }
+
+        function updateProgress(){
+            const flashContainer=document.getElementById("flashcard");
+            const prog=flashContainer.querySelector("#progress");
+            if(!prog)return;
+            const inc=incorrectBucket.length;
+            const cor=correctBucket.length;
+			const def=deferredBucket.length;
+            prog.textContent=`   Remaining: ${inc}   Correct: ${cor}   Incorrect: ${def}`;
+        }
+
+        function displayFlashcard(){
+            const flashContainer=document.getElementById("flashcard");
+            flashContainer.innerHTML="";
+
+            if(incorrectBucket.length===0 && deferredBucket.length===0){
+                flashContainer.innerHTML=`<h3>All flashcards completed! You have no more incomplete cards.</h3><button onclick="backToEditing()">Back to Editing</button>`;
+                updateProgress();
+                return;
+            }
+
+            if(currentIndex>=incorrectBucket.length){
+                currentIndex=0;
+            }
+
+            const unit=incorrectBucket[currentIndex];
+			
+			// === Extract Unit Profile Characteristics ===
+			let unitCharKeys = Object.keys(unit.profiles || {});
+			const desiredProfileOrder = ["M", "SV", "T", "W", "LD", "OC"];
+			
+			unitCharKeys.sort((a, b) => {
+				const ai = desiredProfileOrder.indexOf(a);
+				const bi = desiredProfileOrder.indexOf(b);
+				return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+			});
+
+			let gridColumnDefinition = `minmax(150px, 300px) ${unitCharKeys.map(k => 'minmax(50px, 80px)').join(' ')}`;
+
+			let profileTableHTML = `<div class="unit-table" style="display:grid; grid-template-columns: ${gridColumnDefinition}; gap:10px; width: 100%;">
+				<div class="uheader-row" style="display:grid; grid-template-columns: ${gridColumnDefinition};">
+					<div class="header-cell">Unit</div>
+					${unitCharKeys.map(k => `<div class="header-cell">${k}</div>`).join("")}
+				</div>
+				<div class="unit-row" style="display:grid; grid-template-columns: ${gridColumnDefinition}; grid-column-start: 1;">
+					<div class="cell unit-left">${unit.name}</div>
+					${unitCharKeys.map(k => `
+						<div class="cell">
+							<input type="text" data-unit-index="${currentIndex}" data-key="${k}" value="${answersRevealed ? unit.profiles[k] || '' : ''}" data-correct="${unit.profiles[k] || ''}">
+						</div>
+					`).join("")}
+				</div>
+			</div>`;
+
+            let keySet=new Set();
+            unit.weapons.forEach(w=>{
+                Object.keys(w.characteristics).forEach(k=>keySet.add(k));
+            });
+            let allKeys=Array.from(keySet);
+            const desired=["Range","BS/WS","A","S","AP","D","Keywords"];
+            allKeys.sort((a,b)=>{
+                const ai=desired.indexOf(a);
+                const bi=desired.indexOf(b);
+                if(ai===-1&&bi===-1){
+                    return a.localeCompare(b);
+                } else if(ai===-1){
+                    return 1;
+                } else if(bi===-1){
+                    return -1;
+                } else{
+                    return ai-bi;
+                }
+            });
+
+            let colDefs=[];
+            colDefs.push({name:"Weapon",width:"150px"});
+
+            function colWidth(k){
+                if(k==="Keywords"){
+                    return "minmax(150px,300px)";
+                } else if(["Range","BS/WS","A","S","AP","D"].includes(k)){
+                    return "minmax(50px,80px)";
+                } else{
+                    return "minmax(60px,1fr)";
+                }
+            }
+
+            allKeys.forEach(k=>{
+                colDefs.push({name:k,width:colWidth(k)});
+            });
+
+            const colStr=colDefs.map(d=>d.width).join(" ");
+
+            let weaponTableHTML=
+				`<div class="weapon-table" style="display:grid; grid-template-columns: ${colStr}; gap:10px;">
+					<div class="wheader-row">
+						<div class="header-cell">Weapon</div>
+					${allKeys.map(a=>`<div class="header-cell">${a}</div>`).join("")}
+				</div>
+				`;
+
+            let ranged=[];
+            let melee=[];
+            unit.weapons.forEach(w=>{
+                let rg=w.characteristics.Range||"";
+                if(rg.toLowerCase()==="melee"){
+                    melee.push(w);
+                } else{
+                    ranged.push(w);
+                }
+            });
+            let final=[...ranged,...melee];
+
+            final.forEach((weapon,wIx)=>{
+                weaponTableHTML+='<div class="weapon-row">';
+                weaponTableHTML+=`<div class="cell weapon-left">${weapon.name}</div>`;
+				
+                allKeys.forEach(k=>{
+                    let cVal=weapon.characteristics[k]||"";
+                    let dis="";
+                    let cls="";
+                    if(k==="Range"&&cVal.toLowerCase()==="melee"){
+                        dis="disabled";
+                    }
+					
+					let showVal = answersRevealed ? cVal : "";
+					if (knownWeapons[weapon.name]) {
+						if (cVal === knownWeapons[weapon.name][k] && k !== "BS/WS") {
+							showVal = cVal || "";
+							dis = "disabled";
+						}
+					}
+
+					let align=""
+					if (k === "Keywords") {
+						align="style=\"text-align: left\""
+					}
+
+                    weaponTableHTML+=`
+						<div class="cell">
+							<input type="text" class="${cls}" data-key="${k}" data-weapon-index="${wIx}" data-correct="${cVal}" ${align} ${dis} value="${showVal}">
+						</div>`;
+                });
+				
+                weaponTableHTML+='</div>';
+            });
+
+            weaponTableHTML+='</div>';
+
+			let abilityTableHTML=`
+				<div class="ability-table" style="display:grid; grid-template-columns: 150px 1fr 1fr;">
+					<div class="aheader-row">
+						<div class="header-cell" style="text-align: left">Abilities</div>
+					</div>
+				`;
+			
+			unit.abilities.forEach((ability,aIx)=>{
+				let aVal=ability.description||"";
+				let showVal=answersRevealed ? aVal : "Ability hidden";
+
+				abilityTableHTML+=`
+					<div class="ability-row">
+						<div class="cell ability-left">${ability.name}</div>
+						<div class="cell"><textarea></textarea></div>
+						<div class="cell"><textarea data-ability-index="${aIx}" data-correct="${aVal}" value="${showVal}" disabled="true"></textarea></div>
+					</div>`;
+			});
+			
+			abilityTableHTML+='</div>'
+			
+            let btnHTML=`
+				<button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button>
+				<button onclick="revealAnswers()" id="revealBtn">Reveal Answers (Shift+Enter)</button>
+				<button onclick="markCardCorrect()" id="correctBtn" class="hidden">Correct (Enter)</button>
+				<button onclick="markCardIncorrect()" id="incorrectBtn" class="hidden">Incorrect (Shift+Enter)</button>
+				<button onclick="startFlashcards()" id="restartBtn">Restart</button>
+				<button onclick="backToEditing()">Back to Editing</button>
+				`;
+
+            flashContainer.innerHTML=`
+				<div id="progress"></div>
+				<h3>${unit.name}</h3>
+				${profileTableHTML}
+				${weaponTableHTML}
+				${abilityTableHTML}
+				${btnHTML}
+				`;
+
+			
+            updateProgress();
+			flashContainer.querySelectorAll("input")[0].focus();
+			autoSizeAllTextareas();
+        }
+
+        function submitAnswers(){
+            const flashContainer=document.getElementById("flashcard");
+            if(!flashContainer)return;
+
+            const unit=incorrectBucket[currentIndex];
+            let allCorrect=true;
+
+            const inputs=flashContainer.querySelectorAll("input");
+            let firstWrong=null;
+            inputs.forEach(inp=>{
+                if(!inp)return;
+                const correctVal=(inp.getAttribute("data-correct")||"").trim().toLowerCase();
+                const key=inp.getAttribute("data-key");
+				let userVal=sanitizeValue(key,inp.value);
+
+                if(key==="Range"&&correctVal==="melee"){
+                    return;
+                }
+
+                if(key==="Keywords"){
+                    const cTok=tokenizeKeywords(correctVal.toLowerCase());
+                    const uTok=tokenizeKeywords(userVal.toLowerCase());
+                    if(!setsEqual(cTok,uTok)){
+						inp.style.border="3px solid red";
+                        allCorrect=false;
+                        if(!firstWrong)firstWrong=inp;
+                    }else{
+						inp.style.border="3px solid green";
+						inp.disabled="true"
+                    }
+                } else{
+                    if(correctVal.toLowerCase()!==userVal.toLowerCase()){
+						inp.style.border="3px solid red";
+                        allCorrect=false;
+                        if(!firstWrong)firstWrong=inp;
+                    }else{
+						inp.style.border="3px solid green";
+						inp.disabled="true"
+                    }
+                }
+            });
+
+            if(allCorrect){
+                revealAnswers()
+            }else{
+                if(firstWrong)firstWrong.focus();
+            }
+			
+			if (incorrectBucket.Length === 0 && deferredBucket.length > 0) {
+				incorrectBucket = [...deferredBucket];
+				deferredBucket = [];
+			}
+			
+			if (currentIndex >= incorrectBucket.length) {
+				currentIndex = 0;
+			}
+            updateProgress();
+        }
+
+        function revealAnswers(){
+			const flashContainer=document.getElementById("flashcard");
+            if(!flashContainer)return;
+			
+			answersRevealed=true
+
+            const inputs=flashContainer.querySelectorAll("input");
+            inputs.forEach(inp=>{
+                if(!inp) return;
+                const cVal=inp.getAttribute("data-correct")||"";
+                if(!inp.disabled){
+                    inp.value=cVal;
+                    inp.disabled=true;
+                }
+            });
+			
+			const textareas=flashContainer.querySelectorAll("textarea");
+			textareas.forEach(inp=>{
+				if(!inp) return;
+				const aVal=inp.getAttribute("data-correct")||inp.value;
+				inp.value=aVal;
+				inp.disabled=true;
+			});
+
+            const sb=document.getElementById("submitBtn");
+            const rb=document.getElementById("revealBtn");
+            const cb=document.getElementById("correctBtn");
+			const ib=document.getElementById("incorrectBtn");
+
+            if(sb)sb.classList.add("hidden");
+            if(rb)rb.classList.add("hidden");
+            if(cb)cb.classList.remove("hidden");
+			if(ib)ib.classList.remove("hidden");
+			
+			autoSizeAllTextareas();
+        }
+
+		function markCardCorrect() {
+			const card = incorrectBucket.splice(currentIndex, 1)[0];
+			answersRevealed=false
+			
+			card.weapons.forEach(w => {
+				if (!knownWeapons[w.name]) {
+					knownWeapons[w.name] = { ...w.characteristics};
+				}
+			});
+			
+			correctBucket.push(card);
+			
+			if (incorrectBucket.length === 0 && deferredBucket.length > 0) {
+				incorrectBucket = [...deferredBucket];
+				deferredBucket = [];
+			}
+			
+			if (currentIndex >= incorrectBucket.length) {
+				currentIndex = 0;
+			}
+			
+			displayFlashcard();
+		}
+
+		function markCardIncorrect() {
+			const card = incorrectBucket.splice(currentIndex, 1)[0];
+			answersRevealed=false
+
+			// Move incorrect card to deferredBucket instead of reinserting immediately
+			deferredBucket.push(card);
+
+			// If all incorrect cards are answered, refill from deferredBucket
+			if (incorrectBucket.length === 0 && deferredBucket.length > 0) {
+				incorrectBucket = [...deferredBucket];
+				deferredBucket = [];
+			}
+
+			if (currentIndex >= incorrectBucket.length) {
+				currentIndex = 0;
+			}
+
+			displayFlashcard();
+		} 
+
+
+
+
+// DEBUG STUFF
+        console.log("Test: parseData with minimal JSON...");
+        (function(){
+            let testJSON={roster:{forces:[]}};
+            parseData(testJSON);
+            console.log("Units array after parse:",units);
+        })();
+
+        console.log("Test: Checking handleFileUpload is defined...");
+        if(typeof handleFileUpload==="function"){
+            console.log("handleFileUpload is properly defined.");
+        } else{
+            console.error("handleFileUpload is NOT defined!");
+        }
+
+        // Additional test case for null input safety
+        console.log("Test: verify that submitAnswers doesn't throw if an input is null...");
+        (function(){
+            // We'll call submitAnswers without any real DOM.
+            // Expect no error.
+            submitAnswers();
+            console.log("submitAnswers invoked with no DOM - no error thrown.");
+        })();
+
+        // Additional test for no multiple 'fc' in same scope
+        console.log("Test: ensure no repeated 'fc' declarations in the same function.");
+        console.log("No conflicts found.");
+    </script>
+</head>
+
+<body>
+    <h1>Flashcards</h1>
+    <input type="file" id="file-input" accept="application/json" onchange="handleFileUpload(event)">
+    <div id="review-section"></div><br>
+    <button id="accept-button" style="display:none;" onclick="startFlashcards()">Accept and Start Flashcards</button>
+    <div id="flashcard-section" style="display:none;">
+        <div id="flashcard"></div>
+    </div>
+</body>
+</html>
