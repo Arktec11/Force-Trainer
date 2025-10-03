@@ -134,18 +134,22 @@
 					
 					const ability={
 						name: aName,
-						description:parent.characteristics?.map(c=> formatAbilities(c.$text)).join(" ")||"",
+						description:parent.characteristics?.map(c=> formatAbilities(c.$text))||"",
 						subAbilities:[]
 					};
 				
 					const children=sel.profiles.filter(p=>p.typeName===parent.name);
 					
 					children.forEach(child=>{
-						parent.description += `\n• ${child.description}`;
-						<!-- ability.subAbilities.push({ -->
-							<!-- name:child.name||"Unnamed Sub-Ability", -->
-							<!-- description: child.characteristics?.map(c=>c.$text).join(" ")||"" -->
-						<!-- }); -->
+						const childDesc = child.characteristics?.map(c=> formatAbilities(c.$text))||"";
+						ability.subAbilities.push({
+							name:child.name||"Unnamed Sub-Ability",
+							description: childDesc
+						});
+						
+						if (childDesc) {
+							ability.description += `\n• ${childDesc}`;
+						}
 					});
 					
 					unitAbilities.push(ability);
@@ -338,7 +342,7 @@
 			});
 			unitTable.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
 
-console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns);
+			console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns);
 
 
 			unitTable.style.display = "grid";
@@ -434,7 +438,7 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
 						return "150px";
 					}
 					if (nm === "Keywords") {
-						return "minmax(150px, 300px)";
+						return "minmax(150px, 1fr)";
 					}
 					if (["Range", "BS/WS", "A", "S", "AP", "D"].includes(nm)) {
 						return "minmax(50px, 80px)";
@@ -493,6 +497,7 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
 
 						if (key === "Keywords") {
 							inp.style="text-align: left";
+							inp.style.boxSizing = "border-box";
 						}
 
 						if (key === "Range" && val.toLowerCase() === "melee") {
@@ -667,7 +672,9 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
             flashContainer.innerHTML="";
 
             if(incorrectBucket.length===0 && deferredBucket.length===0){
-                flashContainer.innerHTML=`<h3>All flashcards completed! You have no more incomplete cards.</h3><button onclick="backToEditing()">Back to Editing</button>`;
+                flashContainer.innerHTML=`<h3>All flashcards completed! You have no more incomplete cards.</h3>
+				<button onclick="startFlashcards()">Restart</button>
+				<button onclick="backToEditing()">Back to Editing</button>`;
                 updateProgress();
                 return;
             }
@@ -744,6 +751,9 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
 
             const colStr=colDefs.map(d=>d.width).join(" ");
 
+
+			// WEAPON TABLE
+			
             let weaponTableHTML=
 				`<div class="weapon-table" style="display:grid; grid-template-columns: ${colStr}; gap:10px;">
 					<div class="wheader-row">
@@ -800,26 +810,52 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
 
             weaponTableHTML+='</div>';
 
-			let abilityTableHTML=`
-				<div class="ability-table" style="display:grid; grid-template-columns: 150px 1fr 1fr;">
-					<div class="aheader-row">
-						<div class="header-cell" style="text-align: left">Abilities</div>
-					</div>
-				`;
+
+			// ABILITY TABLE
+			
+			let abilityTableHTML= document.createElement("div"); // CREATE TABLE
+			abilityTableHTML.className = "ability-table";
+			abilityTableHTML.style.display = "grid";
+			abilityTableHTML.style.gridTemplateColumns = "150px 1fr 1fr";
+			
+			let aHeadRow = document.createElement("div"); //CREATE HEADER ROW
+			aHeadRow.className = "aheader-row header-cell";
+			aHeadRow.style.align= "left";
+			aHeadRow.textContent = "Abilities";
+			
+			abilityTableHTML.appendChild(aHeadRow)
 			
 			unit.abilities.forEach((ability,aIx)=>{
 				let aVal=ability.description||"";
-				let showVal=answersRevealed ? aVal : "Ability hidden";
+				let showVal=answersRevealed ? aVal : "Hidden";
 
-				abilityTableHTML+=`
-					<div class="ability-row">
-						<div class="cell ability-left">${ability.name}</div>
-						<div class="cell"><textarea></textarea></div>
-						<div class="cell"><textarea data-ability-index="${aIx}" data-correct="${aVal}" value="${showVal}" disabled="true"></textarea></div>
-					</div>`;
+				const aRow = document.createElement("div"); // CREATE A ROW
+				aRow.className = "ability-row";
+				
+				const cell1 = document.createElement("div");
+				cell1.className = "cell ability-left";
+				cell1.textContent = ability.name||"";
+				aRow.appendChild(cell1);
+				
+				const cell2 = document.createElement("div");
+				cell2.className = "cell";
+				let taInput = document.createElement("textarea");
+				<!-- taInput.className = "cell"; -->
+				cell2.appendChild(taInput);
+				aRow.appendChild(cell2);
+				
+				const cell3 = document.createElement("div");
+				cell3.className = "cell";
+				let taOutput = document.createElement("textarea");
+				taOutput.setAttribute("data-ability-index", aIx);
+				taOutput.setAttribute("data-correct", aVal);
+				taOutput.disabled=true;
+				taOutput.value=showVal;
+				cell3.appendChild(taOutput);
+				aRow.appendChild(cell3);
+				
+				abilityTableHTML.appendChild(aRow)
 			});
-			
-			abilityTableHTML+='</div>'
 			
             let btnHTML=`
 				<button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button>
@@ -830,15 +866,20 @@ console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplat
 				<button onclick="backToEditing()">Back to Editing</button>
 				`;
 
-            flashContainer.innerHTML=`
-				<div id="progress"></div>
-				<h3>${unit.name}</h3>
-				${profileTableHTML}
-				${weaponTableHTML}
-				${abilityTableHTML}
-				${btnHTML}
-				`;
-
+			let prog = document.createElement("div");
+			prog.id = "progress";
+			flashContainer.appendChild(prog);
+			
+			let h3 = document.createElement("h3");
+			h3.textContent = unit.name;
+			flashContainer.appendChild(h3);
+			
+			flashContainer.insertAdjacentHTML("beforeend", profileTableHTML);
+			flashContainer.insertAdjacentHTML("beforeend", weaponTableHTML);
+			
+			flashContainer.appendChild(abilityTableHTML);
+			
+			flashContainer.insertAdjacentHTML("beforeend", btnHTML);
 			
             updateProgress();
 			flashContainer.querySelectorAll("input")[0].focus();
