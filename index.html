@@ -14,6 +14,19 @@
         let currentIndex=0;
         let answersRevealed=false;
 		let knownWeapons={}; //structure: { "Bolt Pistol": { "Range": "12", "A": "1", "S": "4", ... } }
+		
+		const keywordSuggestions = [
+			"Assault",
+			"Heavy",
+			"Melta",
+			"Twin-Linked",
+			"Rapid Fire",
+			"Lethal Hits",
+			"Sustained Hits",
+			"Blast",
+			"Pistol",
+			// need more
+		];
 
 		setTimeout(()=>{
 			document.addEventListener("keydown", function(event) {
@@ -309,7 +322,7 @@
 			rev.appendChild(topButton);
 
 
-			//SET UP UNIT TABLE
+			//SET UP UNIT TABLE ------------------------------------------------------------------------------------------------------------------
 			const unitTable = document.createElement("div");
 			unitTable.className = "unit-table";
 
@@ -331,7 +344,7 @@
 
 			function colWidth(k) {
 				if (["M", "SV", "T", "W", "LD", "OC"].includes(k)) {
-					return "minmax(50px, 80px)";
+					return "minmax(30px, 80px)";
 				}
 				return "minmax(60px, 1fr)";
 			}
@@ -340,17 +353,11 @@
 			unitCharacteristics.forEach(k => {
 				unitColDefs.push({ name: k, width: colWidth(k) });
 			});
-			unitTable.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
 
-			console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns);
-
-
-			unitTable.style.display = "grid";
-			unitTable.style.marginBottom = "20px";
+			<!-- console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns); -->
 
 			const unitHeadRow = document.createElement("div");
 			unitHeadRow.className = "uheader-row";
-			unitHeadRow.style.display = "grid";
 			unitHeadRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
 
 			const unitHdr = document.createElement("div");
@@ -368,15 +375,11 @@
 			unitTable.appendChild(unitHeadRow);
 
 			units.forEach((unit, uIndex) => {
-				console.log(`Creating row for unit: ${unit.name} (Index: ${uIndex})`);
+				<!-- console.log(`Creating row for unit: ${unit.name} (Index: ${uIndex})`); -->
 
 				const uRow = document.createElement("div");
 				uRow.className = "unit-row";
-				uRow.style.display = "grid";
-				uRow.style.gridTemplateColumns = unitTable.style.gridTemplateColumns; 
-				uRow.style.gridColumnStart = "1"; // Force each row to start in column 1
-				uRow.style.width = "100%"; 
-				uRow.style.padding = "5px";
+				uRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
 
 				const uNameCell = document.createElement("div");
 				uNameCell.className = "cell unit-left";
@@ -395,23 +398,18 @@
 					inp.setAttribute("data-unit-index", String(uIndex));
 					inp.setAttribute("data-key", key);
 					inp.onchange = updateUnitCharacteristic;
-					inp.onkeydown = function(ev) {
-						if (ev.keyCode === 13) {
-							submitAnswers();
-						}
-					};
 
 					cCell.appendChild(inp);
 					uRow.appendChild(cCell);
 				});
 
-				console.log(`Appending row for ${unit.name}`);
+				<!-- console.log(`Appending row for ${unit.name}`); -->
 				unitTable.appendChild(uRow);
 			});
 
 			rev.appendChild(unitTable);
 
-			//WEAPONS AND ABILITIES SECTION
+			//WEAPONS AND ABILITIES SECTION ------------------------------------------------------------------------------------------------------------------
 			units.forEach((u, uIndex) => {
 				const unitDiv = document.createElement("div");
 				unitDiv.innerHTML = "<h3>"+ u.name +"</h3>";
@@ -430,15 +428,15 @@
 				});
 
 				// WEAPONS
-				const wtbl = document.createElement("div");
-				wtbl.className = "weapon-table";
+				const weaponTable = document.createElement("div");
+				weaponTable.className = "weapon-table";
 
 				function colWidth(nm, isWeapon) {
 					if (isWeapon) {
 						return "150px";
 					}
 					if (nm === "Keywords") {
-						return "minmax(150px, 1fr)";
+						return "minmax(80px, 150px)";
 					}
 					if (["Range", "BS/WS", "A", "S", "AP", "D"].includes(nm)) {
 						return "minmax(50px, 80px)";
@@ -451,26 +449,32 @@
 				allKeys.forEach(k => {
 					colDefs.push({ name: k, width: colWidth(k, false) });
 				});
-				wtbl.style.gridTemplateColumns = colDefs.map(d => d.width).join(" ");
+				colDefs.push({name: "Keyword Tags", width: "minmax(60px, 1fr)" });
 
-				const wHeadRow = document.createElement("div");
-				wHeadRow.className = "wheader-row";
-				const wHdr = document.createElement("div");
-				wHdr.className = "header-cell";
-				wHdr.textContent = "Weapon";
-				wHeadRow.appendChild(wHdr);
+				// WEAPON HEADER ROW
+				const weaponHeadRow = document.createElement("div");
+				weaponHeadRow.className = "wheader-row";
+				weaponHeadRow.style.gridTemplateColumns = colDefs.map(d => d.width).join(" ");
+				
+				const weaponHdr = document.createElement("div");
+				weaponHdr.className = "header-cell";
+				weaponHdr.textContent = "Weapon";
+				weaponHeadRow.appendChild(weaponHdr);
+				
 				allKeys.forEach(k => {
 					const c = document.createElement("div");
 					c.className = "header-cell";
 					c.textContent = k;
-					wHeadRow.appendChild(c);
+					weaponHeadRow.appendChild(c);
 				});
-				wtbl.appendChild(wHeadRow);
+				weaponTable.appendChild(weaponHeadRow);
 
 				u.weapons.forEach((weapon, wIx) => {
 					// create row for weapon
 					const wRow = document.createElement("div");
 					wRow.className = "weapon-row";
+					wRow.style.gridTemplateColumns = colDefs.map(d => d.width).join(" ");
+					
 					// create cell for weapon name
 					const wNameCell = document.createElement("div");
 					wNameCell.className = "cell weapon-left";
@@ -489,7 +493,6 @@
 						const inp = document.createElement("input");
 						inp.type = "text";
 						inp.value = val;
-						
 						inp.setAttribute("data-unit-index", String(uIndex));
 						inp.setAttribute("data-weapon-index", String(wIx));
 						inp.setAttribute("data-key", key);
@@ -497,7 +500,6 @@
 
 						if (key === "Keywords") {
 							inp.style="text-align: left";
-							inp.style.boxSizing = "border-box";
 						}
 
 						if (key === "Range" && val.toLowerCase() === "melee") {
@@ -506,14 +508,14 @@
 							inp.classList.add("grayed");
 						}
 
-						wRow.appendChild(cCell);
 						cCell.appendChild(inp);
+						wRow.appendChild(cCell);
 					});
 
-					wtbl.appendChild(wRow); // add row to table
+					weaponTable.appendChild(wRow); // add row to table
 				});
 				
-				unitDiv.appendChild(wtbl); // add weapon table to div
+				unitDiv.appendChild(weaponTable); // add weapon table to div
 				
 				
 				// ABILITIES
@@ -523,13 +525,15 @@
 				const aHeadRow = document.createElement("div");
 				aHeadRow.className = "aheader-row header-cell";
 				aHeadRow.textContent = "Abilities";
+				aHeadRow.style.gridTemplateColumns = "150px 1fr";
 				atbl.appendChild(aHeadRow);
 				
 				u.abilities.forEach((ability, aIx) => {
 					const aRow = document.createElement("div"); //create row for ability
 					aRow.className = "ability-row";
-					//create cell for ability name
-					const aNameCell = document.createElement("div");
+					aRow.style.gridTemplateColumns = "150px 1fr";
+					
+					const aNameCell = document.createElement("div"); 	//create cell for ability name
 					aNameCell.className = "cell ability-left";
 					aNameCell.textContent = ability.name;
 					aRow.appendChild(aNameCell);
@@ -542,9 +546,9 @@
 					inp.setAttribute("data-unit-index", String(uIndex));
 					inp.setAttribute("data-ability-index", String(aIx));
 					inp.onchange = updateAbilities;
-					
 					aCell.appendChild(inp);
 					aRow.appendChild(aCell);
+					
 					atbl.appendChild(aRow);
 					
 					inp.style.height = "auto";
@@ -712,10 +716,14 @@
 				</div>
 			</div>`;
 
+			
+			//WEAPON TABLE
+
             let keySet=new Set();
             unit.weapons.forEach(w=>{
                 Object.keys(w.characteristics).forEach(k=>keySet.add(k));
             });
+			
             let allKeys=Array.from(keySet);
             const desired=["Range","BS/WS","A","S","AP","D","Keywords"];
             allKeys.sort((a,b)=>{
@@ -749,20 +757,32 @@
                 colDefs.push({name:k,width:colWidth(k)});
             });
 
+			colDefs.push({name: "Keyword Tags", width: "minmax(60px, 1fr)" });
+
             const colStr=colDefs.map(d=>d.width).join(" ");
-
-
-			// WEAPON TABLE
 			
-            let weaponTableHTML=
-				`<div class="weapon-table" style="display:grid; grid-template-columns: ${colStr}; gap:10px;">
-					<div class="wheader-row">
-						<div class="header-cell">Weapon</div>
-					${allKeys.map(a=>`<div class="header-cell">${a}</div>`).join("")}
-				</div>
-				`;
+			const weaponTable = document.createElement("div");
+			weaponTable.className = "weapon-table";			
 
-            let ranged=[];
+			// WEAPON HEADER ROW
+			const weaponHeadRow = document.createElement("div");
+			weaponHeadRow.className = "wheader-row";
+			weaponHeadRow.style.gridTemplateColumns = colStr;
+			
+			const weaponHdr = document.createElement("div");
+			weaponHdr.className = "header-cell";
+			weaponHdr.textContent = "Weapon";
+			weaponHeadRow.appendChild(weaponHdr);
+			
+			allKeys.forEach(k => {
+				const c = document.createElement("div");
+				c.className = "header-cell";
+				c.textContent = k;
+				weaponHeadRow.appendChild(c);
+			});
+			weaponTable.appendChild(weaponHeadRow);
+			
+			let ranged=[];
             let melee=[];
             unit.weapons.forEach(w=>{
                 let rg=w.characteristics.Range||"";
@@ -772,17 +792,30 @@
                     ranged.push(w);
                 }
             });
-            let final=[...ranged,...melee];
-
-            final.forEach((weapon,wIx)=>{
-                weaponTableHTML+='<div class="weapon-row">';
-                weaponTableHTML+=`<div class="cell weapon-left">${weapon.name}</div>`;
+			
+            let orderedWeapons=[...ranged,...melee];
+			
+			orderedWeapons.forEach((weapon, wIx) => {
+				// create row for weapon
+				const wRow = document.createElement("div");
+				wRow.className = "weapon-row";
+				wRow.style.gridTemplateColumns = colStr;
 				
-                allKeys.forEach(k=>{
-                    let cVal=weapon.characteristics[k]||"";
-                    let dis="";
-                    let cls="";
-                    if(k==="Range"&&cVal.toLowerCase()==="melee"){
+				// create cell for weapon name
+				const wNameCell = document.createElement("div");
+				wNameCell.className = "cell weapon-left";
+				wNameCell.textContent = weapon.name;
+				wRow.appendChild(wNameCell); //add cell to row
+
+				allKeys.forEach(k => { 
+					const cCell = document.createElement("div");
+					cCell.className = "cell";
+
+					let cVal = weapon.characteristics[k] || "";
+					let dis = false;
+					let cls = "";
+					
+					if(k==="Range"&&cVal.toLowerCase()==="melee"){
                         dis="disabled";
                     }
 					
@@ -790,38 +823,47 @@
 					if (knownWeapons[weapon.name]) {
 						if (cVal === knownWeapons[weapon.name][k] && k !== "BS/WS") {
 							showVal = cVal || "";
-							dis = "disabled";
+							dis = true;
 						}
 					}
-
-					let align=""
+					
+					const inp = document.createElement("input");
+					inp.type = "text";
+					inp.value = showVal;
 					if (k === "Keywords") {
-						align="style=\"text-align: left\""
+						inp.style.textAlign = "left";
+					}
+					if (dis) inp.disabled = true;
+					inp.setAttribute("data-weapon-index", String(wIx));
+					inp.setAttribute("data-correct", cVal);
+					inp.setAttribute("data-key", k);
+
+					if (k === "Range" && cVal.toLowerCase() === "melee") {
+						inp.value = "Melee";
+						inp.disabled = true;
+						inp.classList.add("grayed");
 					}
 
-                    weaponTableHTML+=`
-						<div class="cell">
-							<input type="text" class="${cls}" data-key="${k}" data-weapon-index="${wIx}" data-correct="${cVal}" ${align} ${dis} value="${showVal}">
-						</div>`;
-                });
-				
-                weaponTableHTML+='</div>';
-            });
+					cCell.appendChild(inp);
+					wRow.appendChild(cCell);
+				});
 
-            weaponTableHTML+='</div>';
-
+				weaponTable.appendChild(wRow); // add row to table
+			});
+						
+			
 
 			// ABILITY TABLE
 			
 			let abilityTableHTML= document.createElement("div"); // CREATE TABLE
 			abilityTableHTML.className = "ability-table";
 			abilityTableHTML.style.display = "grid";
-			abilityTableHTML.style.gridTemplateColumns = "150px 1fr 1fr";
 			
 			let aHeadRow = document.createElement("div"); //CREATE HEADER ROW
 			aHeadRow.className = "aheader-row header-cell";
 			aHeadRow.style.align= "left";
 			aHeadRow.textContent = "Abilities";
+			aHeadRow.style.gridTemplateColumns = "150px 1fr 1fr";
 			
 			abilityTableHTML.appendChild(aHeadRow)
 			
@@ -831,6 +873,7 @@
 
 				const aRow = document.createElement("div"); // CREATE A ROW
 				aRow.className = "ability-row";
+				aRow.style.gridTemplateColumns = "150px 1fr 1fr";
 				
 				const cell1 = document.createElement("div");
 				cell1.className = "cell ability-left";
@@ -840,7 +883,6 @@
 				const cell2 = document.createElement("div");
 				cell2.className = "cell";
 				let taInput = document.createElement("textarea");
-				<!-- taInput.className = "cell"; -->
 				cell2.appendChild(taInput);
 				aRow.appendChild(cell2);
 				
@@ -857,6 +899,8 @@
 				abilityTableHTML.appendChild(aRow)
 			});
 			
+			
+			// SET UP BUTTONS
             let btnHTML=`
 				<button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button>
 				<button onclick="revealAnswers()" id="revealBtn">Reveal Answers (Shift+Enter)</button>
@@ -866,6 +910,8 @@
 				<button onclick="backToEditing()">Back to Editing</button>
 				`;
 
+
+			// SET UP PAGE
 			let prog = document.createElement("div");
 			prog.id = "progress";
 			flashContainer.appendChild(prog);
@@ -875,8 +921,8 @@
 			flashContainer.appendChild(h3);
 			
 			flashContainer.insertAdjacentHTML("beforeend", profileTableHTML);
-			flashContainer.insertAdjacentHTML("beforeend", weaponTableHTML);
 			
+			flashContainer.appendChild(weaponTable);
 			flashContainer.appendChild(abilityTableHTML);
 			
 			flashContainer.insertAdjacentHTML("beforeend", btnHTML);

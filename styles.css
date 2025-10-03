@@ -1,92 +1,117 @@
 .unit-table {
 	display: grid;
-	gap: 10px;
 	margin-bottom: 20px;
 	border: 1px solid black;
 	align-items: center;
 }
 .weapon-table {
 	display: grid;
-	gap: 10px;
 	margin-bottom: 20px;
 	border: 1px solid black;
 	align-items: center
 }
 .ability-table {
 	display: grid;
-	gap: 10px;
 	margin-bottom: 20px;
 	border: 1px solid black;
 	align-items: left;
-	grid-template-columns: 150px 1fr;
 }
+
 .uheader-row {
-	display: contents;
-	text-align: center;
-	gap: 10px;
-}
-.wheader-row {
-	display: contents;
-	text-align: center;
-	gap: 10px;
-}
-.aheader-row {
-	text-align: left !important;
-	gap: 10px;
-	grid-column: 1 / -1;
-}
-.unit-row {
-	display: grid !important;
-	background-color: white;
-	grid-auto-flow: row !important;
+	display: grid;
 	width: 100%;
 	gap: 10px;
+	padding-left: 5px;
+	padding-top: 10px;
+	box-sizing: border-box;
 }
+.wheader-row {
+	display: grid;
+	width: 100%;
+	gap: 10px;
+	padding-left: 5px;
+	padding-top: 10px;
+	box-sizing: border-box;
+}
+.aheader-row {
+	display: grid;
+	text-align: left;
+	gap: 10px;
+	padding-left: 5px;
+	padding-top: 10px;
+	grid-column: 1 / -1;
+	box-sizing: border-box;
+}
+
+.unit-row {
+	display: grid;
+	grid-auto-flow: row;
+	width: 100%;
+	gap: 10px;
+	padding: 5px;
+	grid-column-start: 1;
+	box-sizing: border-box;
+}
+.weapon-row {
+	display: grid;
+	grid-auto-flow: row;
+	width: 100%;
+	gap: 10px;
+	grid-column-start: 1;
+	box-sizing: border-box;
+	padding: 5px;
+}
+.ability-row {
+	display: grid;
+	grid-auto-flow: row;
+	grid-column-start: 1;
+	box-sizing: border-box;
+	padding: 5px;
+}
+
 .unit-left {
 	text-align: left !important;
 	padding-left: 10px;
-}
-.weapon-row {
-	display: contents;
 }
 .weapon-left {
 	text-align: left !important;
 	padding-left: 10px;
 }
-.ability-row {
-	display: contents;
-}
 .ability-left {
 	text-align: left !important;
 	padding-left: 10px;
 }
+
 .header-cell {
 	font-weight: bold;
 	text-align: center;
-	padding: 5px;
 	border-bottom: 1px solid #ccc;
 }
 .cell {
-	padding: 5px;
 	text-align: center;
 }
+
 .grayed {
 	background-color: #eee;
 	color: #555;
 }
+
 input[type="text"] {
-	width: 100%;
-	padding: 5px;
+	width: 90%;
+	padding-top: 5px;
+	padding-bottom: 5px;
 	text-align: center;
+	box-sizing: border-box;
 }
 textarea {
 	width: 100%;
 	padding: 5px;
 	text-align: left;
 	resize: none;
-	box-sizing: border-box;
 	overflow: hidden;
+	box-sizing: border-box;
 }
+
 #progress {
 	margin-bottom: 10px;
 	font-weight: bold;
