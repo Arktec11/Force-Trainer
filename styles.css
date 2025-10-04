@@ -91,6 +91,39 @@
 	text-align: center;
 }
 
+.keyword-container {
+	display: flex;
+	flex-wrap: wrap;
+	border: 1px solid #ccc;
+	padding: 5px;
+}
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 5px;
+}
+.tag {
+	background: #ddd;
+	padding: 3px 8px;
+	border-radius: 12px;
+	cursor: pointer;
+}
+.suggestions {
+	position: absolute;
+	background: white;
+	border: 1px solid #aaa;
+	max-height: 150px;
+	overflow-y: auto;
+	z-index: 10;
+}
+.suggestion {
+	padding: 4px;
+	cursor: pointer;
+}
+.suggestion:hover {
+	background: #eee;
+}
+
 .grayed {
 	background-color: #eee;
 	color: #555;

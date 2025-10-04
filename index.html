@@ -14,6 +14,7 @@
         let currentIndex=0;
         let answersRevealed=false;
 		let knownWeapons={}; //structure: { "Bolt Pistol": { "Range": "12", "A": "1", "S": "4", ... } }
+		let pageState = "upload"; // upload, review, flashcards, complete
 		
 		const keywordSuggestions = [
 			"Assault",
@@ -30,26 +31,52 @@
 
 		setTimeout(()=>{
 			document.addEventListener("keydown", function(event) {
+				// ENTER CONTROLS
 				if (event.key === "Enter") {
-					if (!event.shiftKey) { //shift not held
-						switch(answersRevealed) {
-							case false:
-								submitAnswers();
-								break;
-							case true:
-								markCardCorrect();
-								break;
-						}
-					} else { //shift held
-						switch(answersRevealed) {
-							case false:
-								submitAnswers();
-								revealAnswers();
-								break;
-							case true:
-								markCardIncorrect();
-								break;
-						}
+					switch (pageState) {
+						case "upload":
+							document.getElementById("file-input").click();
+							break;
+						case "review":
+							startFlashcards();
+							break;
+						case "flashcards":
+							if (!event.shiftKey) { //shift not held
+								switch(answersRevealed) {
+									case false:
+										submitAnswers();
+										break;
+									case true:
+										markCardCorrect();
+										break;
+								}
+							} else { //shift held
+								switch(answersRevealed) {
+									case false:
+										submitAnswers();
+										revealAnswers();
+										break;
+									case true:
+										markCardIncorrect();
+										break;
+								}
+							}
+							break;
+						case "complete":
+							startFlashcards();
+							break;
+					}
+				} else if (event.key === "Escape") {
+					switch (pageState) {
+						case "review":
+							document.getElementById("file-input").click();
+							break;
+						case "flashcards":
+							backToEditing();
+							break;
+						case "complete":
+							backToEditing();
+							break;
 					}
 				}
 			});
@@ -310,6 +337,7 @@
 
 		function displayReviewForm() {
 			// SET UP REVIEW PAGE
+			pageState="review";
 			document.getElementById("flashcard-section").style.display = "none";
 			const rev = document.getElementById("review-section");
 			rev.style.display = "block";
@@ -490,25 +518,48 @@
 							val = "";
 						}
 
-						const inp = document.createElement("input");
-						inp.type = "text";
-						inp.value = val;
-						inp.setAttribute("data-unit-index", String(uIndex));
-						inp.setAttribute("data-weapon-index", String(wIx));
-						inp.setAttribute("data-key", key);
-						inp.onchange = updateWeaponCharacteristic;
-
 						if (key === "Keywords") {
-							inp.style="text-align: left";
+							const container = document.createElement("div");
+							container.className = "keyword-container";
+							container.setAttribute("data-unit-index", uIndex);
+							container.setAttribute("data-weapon-index", wIx);
+							container.setAttribute("data-key", key);
+							container.value = val;
+							
+							const tagsDiv = document.createElement("div");
+							tagsDiv.className = "tags";
+							
+							const inp = document.createElement("input");
+							inp.type = "text";
+							inp.className = "keyword-input";
+							
+							const suggDiv = document.createElement("div");
+							suggDiv.className = "suggestions";
+							
+							container.appendChild(tagsDiv);
+							container.appendChild(inp);
+							container.appendChild(suggDiv);
+							cCell.appendChild(container);
+							
+							setupKeywordInput(container);
+						} else {
+							const inp = document.createElement("input");
+							inp.type = "text";
+							inp.value = val;
+							inp.setAttribute("data-unit-index", String(uIndex));
+							inp.setAttribute("data-weapon-index", String(wIx));
+							inp.setAttribute("data-key", key);
+							inp.onchange = updateWeaponCharacteristic;
+							
+							if (key === "Range" && val.toLowerCase() === "melee") {
+								inp.value = "Melee";
+								inp.disabled = true;
+								inp.classList.add("grayed");
+							}
+							
+							cCell.appendChild(inp);
 						}
 
-						if (key === "Range" && val.toLowerCase() === "melee") {
-							inp.value = "Melee";
-							inp.disabled = true;
-							inp.classList.add("grayed");
-						}
-
-						cCell.appendChild(inp);
 						wRow.appendChild(cCell);
 					});
 
@@ -638,12 +689,65 @@
             }
             return true;
         }
+		
+		function createTagElement(keyword, tagsDiv) {
+			const tag = document.createElement("span");
+			tag.className = "tag";
+			tag.textContent = keyword;
+			tag.onclick = () => tag.remove();
+			tagsDiv.appendChild(tag);
+		}
+		
+		function setupKeywordInput(container) {
+			const input = container.querySelector(".keyword-input");
+			const tagsDiv = container.querySelector(".tags");
+			const suggDiv = container.querySelector(".suggestions");
+			
+			input.addEventListener("input", () => {
+				const val = input.value.toLowerCase();
+				suggDiv.innerHTML = "";
+				
+				if (!val) return;
+				
+				const matches = keywordSuggestions.filter(k =>
+					k.toLowerCase().includes(val)
+				);
+				
+				matches.forEach(match => {
+					const option = document.createElement("div");
+					option.className = "suggestion";
+					option.textContent = match;
+					option.onclick = () => {
+						createTagElement(match, tagsDiv);
+						input.value = "";
+						suggDiv.innerHTML = "";
+					};
+					suggDiv.appendChild(option);
+				});
+			});
+			
+			input.addEventListener("keydown", e => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					const first = suggDiv.querySelector(".suggestion");
+					if (first) {
+						first.click();
+					}
+				}
+			});
+		}
+		
+		function getUserKeywords(container) {
+			return Array.from(container.querySelectorAll(".tag"))
+				.map(tag => tag.textContent.trim().toLowerCase());
+		}
 
         function startFlashcards(){ // START
             document.getElementById("review-section").style.display="none";
             document.getElementById("accept-button").style.display="none";
             document.getElementById("flashcard-section").style.display="block";
 
+			pageState="flashcards";
             incorrectBucket=[...units];
             shuffleArray(incorrectBucket);
             correctBucket=[];
@@ -658,7 +762,8 @@
 
         function backToEditing(){ 
             document.getElementById("flashcard-section").style.display="none";
-            displayReviewForm();
+            pageState = "review";
+			displayReviewForm();
         }
 
         function updateProgress(){
@@ -675,21 +780,61 @@
             const flashContainer=document.getElementById("flashcard");
             flashContainer.innerHTML="";
 
+			if(currentIndex>=incorrectBucket.length){
+                currentIndex=0;
+            }
+ 
+            const unit=incorrectBucket[currentIndex];
+
+			// SET UP BUTTONS ------------------------------------------------------------------------------------------------------------------------------------
+            const btnDiv = document.createElement("div")
+			
+			const submitBtn = document.createElement("button")
+			submitBtn.textContent = "Submit Answers (Enter)";
+			submitBtn.addEventListener("click", submitAnswers);
+			btnDiv.appendChild(submitBtn);
+			
+			const revealBtn = document.createElement("button")
+			revealBtn.textContent = "Reveal Answers (Shift+Enter)";
+			revealBtn.addEventListener("click", revealAnswers);
+			btnDiv.appendChild(revealBtn);
+			
+			const correctBtn = document.createElement("button")
+			correctBtn.textContent = "Correct (Enter)";
+			correctBtn.addEventListener("click", markCardCorrect);
+			correctBtn.className = "hidden";
+			btnDiv.appendChild(correctBtn);
+			
+			const incorrectBtn = document.createElement("button")
+			incorrectBtn.textContent = "Incorrect (Shift+Enter)";
+			incorrectBtn.addEventListener("click", markCardIncorrect);
+			incorrectBtn.className = "hidden";
+			btnDiv.appendChild(incorrectBtn);
+			
+			const restartBtn = document.createElement("button")
+			restartBtn.textContent = "Restart";
+			restartBtn.addEventListener("click", startFlashcards);
+			btnDiv.appendChild(restartBtn);
+			
+			const backBtn = document.createElement("button")
+			backBtn.textContent = "Back to Editing";
+			backBtn.addEventListener("click", backToEditing);
+			btnDiv.appendChild(backBtn);
+
             if(incorrectBucket.length===0 && deferredBucket.length===0){
-                flashContainer.innerHTML=`<h3>All flashcards completed! You have no more incomplete cards.</h3>
-				<button onclick="startFlashcards()">Restart</button>
-				<button onclick="backToEditing()">Back to Editing</button>`;
+				const completeText = document.createElement("h3");
+				completeText.textContent = "All flashcards completed! You have no more incomplete cards.";
+				flashContainer.appendChild(completeText);
+				flashContainer.appendChild(restartBtn);
+				flashContainer.appendChild(backBtn);
+				pageState = "complete";
                 updateProgress();
                 return;
             }
 
-            if(currentIndex>=incorrectBucket.length){
-                currentIndex=0;
-            }
-
-            const unit=incorrectBucket[currentIndex];
 			
-			// === Extract Unit Profile Characteristics ===
+			// UNIT TABLE ------------------------------------------------------------------------------------------------------------------------------------
+			
 			let unitCharKeys = Object.keys(unit.profiles || {});
 			const desiredProfileOrder = ["M", "SV", "T", "W", "LD", "OC"];
 			
@@ -699,25 +844,63 @@
 				return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
 			});
 
-			let gridColumnDefinition = `minmax(150px, 300px) ${unitCharKeys.map(k => 'minmax(50px, 80px)').join(' ')}`;
+			let gridColumnDefinition = `150px ${unitCharKeys.map(k => 'minmax(50px, 80px)').join(' ')}`;
 
-			let profileTableHTML = `<div class="unit-table" style="display:grid; grid-template-columns: ${gridColumnDefinition}; gap:10px; width: 100%;">
-				<div class="uheader-row" style="display:grid; grid-template-columns: ${gridColumnDefinition};">
-					<div class="header-cell">Unit</div>
-					${unitCharKeys.map(k => `<div class="header-cell">${k}</div>`).join("")}
-				</div>
-				<div class="unit-row" style="display:grid; grid-template-columns: ${gridColumnDefinition}; grid-column-start: 1;">
-					<div class="cell unit-left">${unit.name}</div>
-					${unitCharKeys.map(k => `
-						<div class="cell">
-							<input type="text" data-unit-index="${currentIndex}" data-key="${k}" value="${answersRevealed ? unit.profiles[k] || '' : ''}" data-correct="${unit.profiles[k] || ''}">
-						</div>
-					`).join("")}
-				</div>
-			</div>`;
+			const unitTable = document.createElement("div");
+			unitTable.className = "unit-table";
+			
+			const unitHeadRow = document.createElement("div");
+			unitHeadRow.className = "uheader-row";
+			unitHeadRow.style.gridTemplateColumns = gridColumnDefinition;
+			
+			const unitHdr = document.createElement("div");
+			unitHdr.className = "header-cell";
+			unitHdr.textContent = "Unit";
+			unitHeadRow.appendChild(unitHdr);
+			
+			unitCharKeys.forEach(k => {
+				const c = document.createElement("div");
+				c.className = "header-cell";
+				c.textContent = k;
+				unitHeadRow.appendChild(c);
+			});
+			
+			unitTable.appendChild(unitHeadRow)
+			
+			const unitRow = document.createElement("div");
+			unitRow.className = "unit-row";
+			unitRow.style.gridTemplateColumns = gridColumnDefinition;
+			
+			const unitNameCell = document.createElement("div");
+			unitNameCell.className = "cell unit-left"
+			unitNameCell.textContent = unit.name;
+			unitRow.appendChild(unitNameCell);
+			
+			unitCharKeys.forEach(k => {
+				const uCell = document.createElement("div");
+				uCell.className = "cell";
+				
+				let cVal = unit.profiles[k] || "";
+				let dis = false;
+				let cls = "";
+				let showVal = answersRevealed ? cVal : "";
+				
+				const inp = document.createElement("input");
+				inp.type = "text";
+				inp.value = showVal;
+				inp.disabled = dis;
+				inp.setAttribute("data-Unit-index", String(currentIndex));
+				inp.setAttribute("data-correct", cVal);
+				inp.setAttribute("data-key", k);
+				
+				uCell.appendChild(inp);
+				unitRow.appendChild(uCell);
+			});
+			
+			unitTable.appendChild(unitRow);
 
 			
-			//WEAPON TABLE
+			//WEAPON TABLE ------------------------------------------------------------------------------------------------------------------------------------
 
             let keySet=new Set();
             unit.weapons.forEach(w=>{
@@ -795,6 +978,7 @@
 			
             let orderedWeapons=[...ranged,...melee];
 			
+			// WEAPON ROWS
 			orderedWeapons.forEach((weapon, wIx) => {
 				// create row for weapon
 				const wRow = document.createElement("div");
@@ -807,6 +991,7 @@
 				wNameCell.textContent = weapon.name;
 				wRow.appendChild(wNameCell); //add cell to row
 
+				
 				allKeys.forEach(k => { 
 					const cCell = document.createElement("div");
 					cCell.className = "cell";
@@ -827,24 +1012,47 @@
 						}
 					}
 					
-					const inp = document.createElement("input");
-					inp.type = "text";
-					inp.value = showVal;
 					if (k === "Keywords") {
-						inp.style.textAlign = "left";
-					}
-					if (dis) inp.disabled = true;
-					inp.setAttribute("data-weapon-index", String(wIx));
-					inp.setAttribute("data-correct", cVal);
-					inp.setAttribute("data-key", k);
+						const container = document.createElement("div");
+						container.className = "keyword-container";
+						container.setAttribute("data-weapon-index", wIx);
+						container.setAttribute("data-correct", cVal);
+						container.setAttribute("data-key", k);
 
-					if (k === "Range" && cVal.toLowerCase() === "melee") {
-						inp.value = "Melee";
-						inp.disabled = true;
-						inp.classList.add("grayed");
-					}
+						const tagsDiv = document.createElement("div");
+						tagsDiv.className = "tags";
 
-					cCell.appendChild(inp);
+						const input = document.createElement("input");
+						input.type = "text";
+						input.className = "keyword-input";
+
+						const suggDiv = document.createElement("div");
+						suggDiv.className = "suggestions";
+
+						container.appendChild(tagsDiv);
+						container.appendChild(input);
+						container.appendChild(suggDiv);
+						cCell.appendChild(container);
+
+						setupKeywordInput(container);
+					} else {
+						const inp = document.createElement("input");
+						inp.type = "text";
+						inp.value = showVal;
+						inp.disabled = dis;
+						inp.setAttribute("data-weapon-index", String(wIx));
+						inp.setAttribute("data-correct", cVal);
+						inp.setAttribute("data-key", k);
+						
+						if (k === "Range" && cVal.toLowerCase() === "melee") {
+							inp.value = "Melee";
+							inp.disabled = true;
+							inp.classList.add("grayed");
+						}
+						
+						cCell.appendChild(inp);
+					}
+					
 					wRow.appendChild(cCell);
 				});
 
@@ -853,11 +1061,11 @@
 						
 			
 
-			// ABILITY TABLE
+			// ABILITY TABLE ------------------------------------------------------------------------------------------------------------------------------------
 			
-			let abilityTableHTML= document.createElement("div"); // CREATE TABLE
-			abilityTableHTML.className = "ability-table";
-			abilityTableHTML.style.display = "grid";
+			let abilityTable= document.createElement("div"); // CREATE TABLE
+			abilityTable.className = "ability-table";
+			abilityTable.style.display = "grid";
 			
 			let aHeadRow = document.createElement("div"); //CREATE HEADER ROW
 			aHeadRow.className = "aheader-row header-cell";
@@ -865,7 +1073,7 @@
 			aHeadRow.textContent = "Abilities";
 			aHeadRow.style.gridTemplateColumns = "150px 1fr 1fr";
 			
-			abilityTableHTML.appendChild(aHeadRow)
+			abilityTable.appendChild(aHeadRow)
 			
 			unit.abilities.forEach((ability,aIx)=>{
 				let aVal=ability.description||"";
@@ -896,22 +1104,21 @@
 				cell3.appendChild(taOutput);
 				aRow.appendChild(cell3);
 				
-				abilityTableHTML.appendChild(aRow)
+				abilityTable.appendChild(aRow)
 			});
 			
 			
-			// SET UP BUTTONS
-            let btnHTML=`
-				<button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button>
-				<button onclick="revealAnswers()" id="revealBtn">Reveal Answers (Shift+Enter)</button>
-				<button onclick="markCardCorrect()" id="correctBtn" class="hidden">Correct (Enter)</button>
-				<button onclick="markCardIncorrect()" id="incorrectBtn" class="hidden">Incorrect (Shift+Enter)</button>
-				<button onclick="startFlashcards()" id="restartBtn">Restart</button>
-				<button onclick="backToEditing()">Back to Editing</button>
-				`;
+			<!-- let btnHTML=` -->
+				<!-- <button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button> -->
+				<!-- <button onclick="revealAnswers()" id="revealBtn">Reveal Answers (Shift+Enter)</button> -->
+				<!-- <button onclick="markCardCorrect()" id="correctBtn" class="hidden">Correct (Enter)</button> -->
+				<!-- <button onclick="markCardIncorrect()" id="incorrectBtn" class="hidden">Incorrect (Shift+Enter)</button> -->
+				<!-- <button onclick="startFlashcards()" id="restartBtn">Restart</button> -->
+				<!-- <button onclick="backToEditing()">Back to Editing</button> -->
+				<!-- `; -->
 
 
-			// SET UP PAGE
+			// SET UP PAGE ------------------------------------------------------------------------------------------------------------------------------------
 			let prog = document.createElement("div");
 			prog.id = "progress";
 			flashContainer.appendChild(prog);
@@ -919,21 +1126,22 @@
 			let h3 = document.createElement("h3");
 			h3.textContent = unit.name;
 			flashContainer.appendChild(h3);
-			
-			flashContainer.insertAdjacentHTML("beforeend", profileTableHTML);
-			
+						
+			flashContainer.appendChild(unitTable);
 			flashContainer.appendChild(weaponTable);
-			flashContainer.appendChild(abilityTableHTML);
+			flashContainer.appendChild(abilityTable);
+			flashContainer.appendChild(btnDiv);
 			
-			flashContainer.insertAdjacentHTML("beforeend", btnHTML);
+			<!-- flashContainer.insertAdjacentHTML("beforeend", btnHTML); -->
 			
             updateProgress();
 			flashContainer.querySelectorAll("input")[0].focus();
 			autoSizeAllTextareas();
         }
 
-        function submitAnswers(){
+        function submitAnswers(){ //----------------------------------------------------------------------------------------------------------------------------
             const flashContainer=document.getElementById("flashcard");
+			console.log("submitAnswers called", { currentIndex, incorrectBucket });
             if(!flashContainer)return;
 
             const unit=incorrectBucket[currentIndex];
@@ -952,18 +1160,22 @@
                 }
 
                 if(key==="Keywords"){
-                    const cTok=tokenizeKeywords(correctVal.toLowerCase());
-                    const uTok=tokenizeKeywords(userVal.toLowerCase());
-                    if(!setsEqual(cTok,uTok)){
-						inp.style.border="3px solid red";
-                        allCorrect=false;
-                        if(!firstWrong)firstWrong=inp;
-                    }else{
-						inp.style.border="3px solid green";
-						inp.disabled="true"
-                    }
-                } else{
-                    if(correctVal.toLowerCase()!==userVal.toLowerCase()){
+					const container = inp.closest(".keyword-container");					
+					const correctSet = tokenizeKeywords(correctVal.toLowerCase());
+					const userSet = new Set(getUserKeywords(container));
+					
+					const missing = [...correctSet].filter(x => !userSet.has(x));
+					const extra = [...userSet].filter(x => !correctSet.has(x));
+					
+					if (missing.length === 0 && extra.length === 0) {
+						container.style.border = "3px solid green";
+					} else {
+						container.style.border = "3px solid red";
+						allCorrect = false;
+						if (!firstWrong) firstWrong = container.querySelector("input");
+					}
+                } else {
+                    if(correctVal.toLowerCase() !== userVal.toLowerCase()){
 						inp.style.border="3px solid red";
                         allCorrect=false;
                         if(!firstWrong)firstWrong=inp;
