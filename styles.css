@@ -90,11 +90,21 @@
 .cell {
 	text-align: center;
 }
+.keyword-cell {
+	display: flex;
+	justify-content: flex-start;
+	gap: 4px;
+}
 
 .keyword-container {
 	display: flex;
 	flex-wrap: wrap;
-	padding: 5px;
+	align-items: center;
+	gap: 5px;
+}
+.keyword-input {
+	flex: 0 0 auto;
+	min-width: 60px;
 }
 .tags {
 	display: flex;

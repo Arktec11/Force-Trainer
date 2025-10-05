@@ -15,6 +15,7 @@
         let answersRevealed=false;
 		let knownWeapons={}; //structure: { "Bolt Pistol": { "Range": "12", "A": "1", "S": "4", ... } }
 		let pageState = "upload"; // upload, review, flashcards, complete
+		let kwFocus = false;
 		
 		const keywordSuggestions = [
 			"Assault",
@@ -35,12 +36,12 @@
 		}
 		
 		for (let i=2; i<=5; i++) {
-			keywordSuggestions.push("Anti-Infantry " + i);
-			keywordSuggestions.push("Anti-Vehicle " + i);
-			keywordSuggestions.push("Anti-Monster " + i);
-			keywordSuggestions.push("Anti-Character " + i);
-			keywordSuggestions.push("Anti-Beast " + i);
-			keywordSuggestions.push("Anti-Titanic " + i);
+			keywordSuggestions.push("Anti-Infantry " + i + "+");
+			keywordSuggestions.push("Anti-Vehicle " + i + "+");
+			keywordSuggestions.push("Anti-Monster " + i + "+");
+			keywordSuggestions.push("Anti-Character " + i + "+");
+			keywordSuggestions.push("Anti-Beast " + i + "+");
+			keywordSuggestions.push("Anti-Titanic " + i + "+");
 		}
 		
 		console.log(keywordSuggestions);
@@ -58,24 +59,26 @@
 							startFlashcards();
 							break;
 						case "flashcards":
-							if (!event.shiftKey) { //shift not held
-								switch(answersRevealed) {
-									case false:
-										submitAnswers();
-										break;
-									case true:
-										markCardCorrect();
-										break;
-								}
-							} else { //shift held
-								switch(answersRevealed) {
-									case false:
-										submitAnswers();
-										revealAnswers();
-										break;
-									case true:
-										markCardIncorrect();
-										break;
+							if (!document.activeElement.classList.contains("keyword-input")) {
+								if (!event.shiftKey) { //shift not held
+									switch(answersRevealed) {
+										case false:
+											submitAnswers();
+											break;
+										case true:
+											markCardCorrect();
+											break;
+									}
+								} else { //shift held
+									switch(answersRevealed) {
+										case false:
+											submitAnswers();
+											revealAnswers();
+											break;
+										case true:
+											markCardIncorrect();
+											break;
+									}
 								}
 							}
 							break;
@@ -755,33 +758,39 @@
             const btnDiv = document.createElement("div")
 			
 			const submitBtn = document.createElement("button")
+			submitBtn.id = "submitBtn";
 			submitBtn.textContent = "Submit Answers (Enter)";
 			submitBtn.addEventListener("click", submitAnswers);
 			btnDiv.appendChild(submitBtn);
 			
 			const revealBtn = document.createElement("button")
+			revealBtn.id = "revealBtn";
 			revealBtn.textContent = "Reveal Answers (Shift+Enter)";
 			revealBtn.addEventListener("click", revealAnswers);
 			btnDiv.appendChild(revealBtn);
 			
 			const correctBtn = document.createElement("button")
+			correctBtn.id = "correctBtn";
 			correctBtn.textContent = "Correct (Enter)";
 			correctBtn.addEventListener("click", markCardCorrect);
 			correctBtn.className = "hidden";
 			btnDiv.appendChild(correctBtn);
 			
 			const incorrectBtn = document.createElement("button")
+			incorrectBtn.id = "incorrectBtn";
 			incorrectBtn.textContent = "Incorrect (Shift+Enter)";
 			incorrectBtn.addEventListener("click", markCardIncorrect);
 			incorrectBtn.className = "hidden";
 			btnDiv.appendChild(incorrectBtn);
 			
 			const restartBtn = document.createElement("button")
+			restartBtn.id = "restartBtn";
 			restartBtn.textContent = "Restart";
 			restartBtn.addEventListener("click", startFlashcards);
 			btnDiv.appendChild(restartBtn);
 			
 			const backBtn = document.createElement("button")
+			backBtn.id = "backBtn";
 			backBtn.textContent = "Back to Editing";
 			backBtn.addEventListener("click", backToEditing);
 			btnDiv.appendChild(backBtn);
@@ -867,6 +876,18 @@
 			
 			//WEAPON TABLE ------------------------------------------------------------------------------------------------------------------------------------
 
+			if (!document.getElementById("keyword-options")) {
+				const datalist = document.createElement("datalist");
+				datalist.id = "keyword-options";
+				
+				keywordSuggestions.forEach(kw => {
+					const option = document.createElement("option");
+					option.value = kw;
+					datalist.appendChild(option);
+				});
+				document.body.appendChild(datalist);
+			}
+
             let keySet=new Set();
             unit.weapons.forEach(w=>{
                 Object.keys(w.characteristics).forEach(k=>keySet.add(k));
@@ -893,7 +914,7 @@
 
             function colWidth(k){
                 if(k==="Keywords"){
-                    return "minmax(150px,300px)";
+                    return "minmax(150px,1fr)";
                 } else if(["Range","BS/WS","A","S","AP","D"].includes(k)){
                     return "minmax(50px,80px)";
                 } else{
@@ -959,7 +980,7 @@
 				
 				allKeys.forEach(k => { 
 					const cCell = document.createElement("div");
-					cCell.className = "cell";
+					cCell.className = "cell ";					
 
 					let cVal = weapon.characteristics[k] || "";
 					let dis = false;
@@ -978,28 +999,19 @@
 					}
 					
 					if (k === "Keywords") {
+						cCell.className = "keyword-cell";
+					
 						const container = document.createElement("div");
 						container.className = "keyword-container";
 						container.setAttribute("data-weapon-index", wIx);
-						container.setAttribute("data-correct", cVal);
 						container.setAttribute("data-key", k);
-
+						
 						const tagsDiv = document.createElement("div");
 						tagsDiv.className = "tags";
-
-						const input = document.createElement("input");
-						input.type = "text";
-						input.className = "keyword-input";
-
-						const suggDiv = document.createElement("div");
-						suggDiv.className = "suggestions";
-
-						container.appendChild(tagsDiv);
-						container.appendChild(input);
-						container.appendChild(suggDiv);
-						cCell.appendChild(container);
-
 						setupKeywordInput(container);
+						
+						container.appendChild(tagsDiv);
+						cCell.appendChild(container);
 					} else {
 						const inp = document.createElement("input");
 						inp.type = "text";
@@ -1071,16 +1083,6 @@
 				
 				abilityTable.appendChild(aRow)
 			});
-			
-			
-			<!-- let btnHTML=` -->
-				<!-- <button onclick="submitAnswers()" id="submitBtn">Submit Answers (Enter)</button> -->
-				<!-- <button onclick="revealAnswers()" id="revealBtn">Reveal Answers (Shift+Enter)</button> -->
-				<!-- <button onclick="markCardCorrect()" id="correctBtn" class="hidden">Correct (Enter)</button> -->
-				<!-- <button onclick="markCardIncorrect()" id="incorrectBtn" class="hidden">Incorrect (Shift+Enter)</button> -->
-				<!-- <button onclick="startFlashcards()" id="restartBtn">Restart</button> -->
-				<!-- <button onclick="backToEditing()">Back to Editing</button> -->
-				<!-- `; -->
 
 
 			// SET UP PAGE ------------------------------------------------------------------------------------------------------------------------------------
@@ -1251,43 +1253,95 @@
 
 
 //	KEYWORD TAGS -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-		function setupKeywordInput(container) { //--------------------------------------------------
-			const input = container.querySelector(".keyword-input");
-			const tagsDiv = container.querySelector(".tags");
-			const suggDiv = container.querySelector(".suggestions");
-			
-			input.addEventListener("input", () => {
-				const val = input.value.toLowerCase();
-				suggDiv.innerHTML = "";
-				
-				if (!val) return;
-				
-				const matches = keywordSuggestions.filter(k =>
-					k.toLowerCase().includes(val)
-				);
-				
-				matches.forEach(match => {
-					const option = document.createElement("div");
-					option.className = "suggestion";
-					option.textContent = match;
-					option.onclick = () => {
-						createTagElement(match, tagsDiv);
-						input.value = "";
-						suggDiv.innerHTML = "";
-					};
-					suggDiv.appendChild(option);
+		function setupKeywordInput(container) {
+			let tagsDiv = container.querySelector(".tags");
+			if (!tagsDiv) {
+				tagsDiv = document.createElement("div");
+				tagsDiv.className = "tags";
+			}
+
+			// Create datalist
+			const datalist = document.createElement("datalist");
+			const listId = "keyword-options-" + Math.random().toString(36).substring(2, 8);
+			datalist.id = listId;
+			document.body.appendChild(datalist);
+
+			const input = document.createElement("input");
+			input.className = "keyword-input";
+			input.setAttribute("list", listId);
+			container.appendChild(input);
+			container.appendChild(tagsDiv);
+
+			// Helper: refresh datalist with remaining suggestions
+			function refreshSuggestions() {
+			  datalist.innerHTML = "";
+			  const used = new Set(
+				[...tagsDiv.querySelectorAll(".tag")].map(t => t.textContent.toLowerCase())
+			  );
+			  keywordSuggestions
+				.filter(kw => !used.has(kw.toLowerCase()))
+				.forEach(kw => {
+				  const opt = document.createElement("option");
+				  opt.value = kw;
+				  datalist.appendChild(opt);
 				});
+			}
+
+			// Helper: create tag safely (no duplicates)
+			function addTag(value) {
+			  const trimmed = value.trim();
+			  if (!trimmed) return;
+			  const existing = [...tagsDiv.querySelectorAll(".tag")]
+				.some(t => t.textContent.toLowerCase() === trimmed.toLowerCase());
+			  if (existing) return; // skip duplicates
+
+			  const tag = document.createElement("span");
+			  tag.className = "tag";
+			  tag.textContent = trimmed;
+			  tag.onclick = () => {
+				tag.remove();
+				refreshSuggestions();
+			  };
+			  tagsDiv.appendChild(tag);
+			  input.value = "";
+			  refreshSuggestions();
+			}
+
+			// Handle typing and confirmation
+			input.addEventListener("input", () => {
+			  const val = input.value.toLowerCase().trim();
+			  const matches = keywordSuggestions.filter(
+				kw => kw.toLowerCase().includes(val)
+			  );
 			});
-			
+
+			// Handle Enter / Tab / selection
 			input.addEventListener("keydown", e => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					const first = suggDiv.querySelector(".suggestion");
-					if (first) {
-						first.click();
-					}
-				}
+			  if (e.key === "Enter" || e.key === "Tab") {
+				e.preventDefault();
+				const val = input.value.trim();
+				if (!val) return;
+
+				// Prefer exact match, otherwise take the first suggestion
+				const match = keywordSuggestions.find(
+				  kw => kw.toLowerCase() === val.toLowerCase()
+				) || keywordSuggestions.find(kw =>
+				  kw.toLowerCase().startsWith(val.toLowerCase())
+				);
+
+				if (match) addTag(match);
+				else input.value = ""; // clear invalid
+			  }
 			});
+
+			// When a suggestion is chosen from dropdown
+			input.addEventListener("change", () => {
+			  const val = input.value.trim();
+			  if (!val) return;
+			  addTag(val);
+			});
+
+			refreshSuggestions();
 		}
 		
 		function createTagElement(keyword, tagsDiv, dis) { //--------------------------------------------------
