@@ -21,21 +21,38 @@
 			"Heavy",
 			"Melta",
 			"Twin-Linked",
-			"Rapid Fire",
 			"Lethal Hits",
-			"Sustained Hits",
 			"Blast",
 			"Pistol",
-			// need more
+			"Devastating Wounds",
+			"Precision",
+			"Hazardous",
 		];
+		
+		for (let i=1; i<=3; i++) {
+			keywordSuggestions.push("Sustained Hits " + i);
+			keywordSuggestions.push("Rapid Fire " + i);
+		}
+		
+		for (let i=2; i<=5; i++) {
+			keywordSuggestions.push("Anti-Infantry " + i);
+			keywordSuggestions.push("Anti-Vehicle " + i);
+			keywordSuggestions.push("Anti-Monster " + i);
+			keywordSuggestions.push("Anti-Character " + i);
+			keywordSuggestions.push("Anti-Beast " + i);
+			keywordSuggestions.push("Anti-Titanic " + i);
+		}
+		
+		console.log(keywordSuggestions);
 
-		setTimeout(()=>{
+		document.addEventListener("DOMContentLoaded", () => {
 			document.addEventListener("keydown", function(event) {
 				// ENTER CONTROLS
 				if (event.key === "Enter") {
 					switch (pageState) {
 						case "upload":
-							document.getElementById("file-input").click();
+							const fileInput = document.getElementById("file-input");
+							if (fileInput) fileInput.click();
 							break;
 						case "review":
 							startFlashcards();
@@ -80,9 +97,71 @@
 					}
 				}
 			});
-		},0);
+		});
 
-        function handleFileUpload(event){
+
+// HELPERS -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        function sanitizeValue(k,v){ //--------------------------------------------------
+            if(k==="Range" && v.toLowerCase()==="melee"){
+                return "Melee";
+            }
+            const arr=["Range","AP","BS/WS","M","SV","LD","user"];
+            if(arr.includes(k)){
+                return v.replace(/[^0-9]/g,"");
+            }
+            if(k==="Keywords" && v==="-"){
+                return "";
+            }
+            return v;
+        }
+	
+		function autoSizeAllTextareas() { //--------------------------------------------------
+			document.querySelectorAll("textarea").forEach(ta => {
+				ta.style.height = "auto";
+				ta.style.height = ta.scrollHeight + "px";
+			});
+		}
+
+        function shuffleArray(arr){ //--------------------------------------------------
+            for(let i=arr.length-1;i>0;i--){
+                const j=Math.floor(Math.random()*(i+1));
+                [arr[i],arr[j]]=[arr[j],arr[i]];
+            }
+        }
+
+		function formatAbilities(text) { //--------------------------------------------------
+			return text
+				.replace(/\^\^\*\*(.*?)\^\^\*\*/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\^\^\*\*(.*?)\*\*\^\^/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\*\*\^\^(.*?)\^\^\*\*/g, (_, inner) => {
+					return inner.toUpperCase();
+			})
+				.replace(/\*\*\^\^(.*?)\*\*\^\^/g, (_, inner) => {
+					return inner.toUpperCase();
+			});
+		}
+
+        function tokenizeKeywords(str){ //--------------------------------------------------
+            const cleaned=str.replace(/[^a-z0-9+]+/g," ").trim();
+            if(!cleaned)return new Set();
+            return new Set(cleaned.split(/\s+/));
+        }
+
+        function setsEqual(a,b){ //--------------------------------------------------
+            if(a.size!==b.size)return false;
+            for(const x of a){
+                if(!b.has(x))return false;
+            }
+            return true;
+        }
+
+
+// UPLOAD -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        function handleFileUpload(event){ //--------------------------------------------------
             const file=event.target.files[0]; //ACCESS FIRST FILE SELECTED BY USER
             if(file){
                 const reader=new FileReader(); //RETURNS A FILEREADER OBJECT
@@ -100,21 +179,7 @@
             }
         }
 
-        function sanitizeValue(k,v){
-            if(k==="Range" && v.toLowerCase()==="melee"){
-                return "Melee";
-            }
-            const arr=["Range","AP","BS/WS","M","SV","LD","user"];
-            if(arr.includes(k)){
-                return v.replace(/[^0-9]/g,"");
-            }
-            if(k==="Keywords" && v==="-"){
-                return "";
-            }
-            return v;
-        }
-		
-		function gatherUnitProfiles(sel) {
+		function gatherUnitProfiles(sel) { //--------------------------------------------------
 			let unitProfiles = [];
 
 			if (sel.profiles && Array.isArray(sel.profiles)) {
@@ -158,7 +223,61 @@
 			return unitProfiles;
 		}
 
-		function gatherUnitAbilities(sel) {
+        function gatherUnitWeapons(sel){ //--------------------------------------------------
+            let weapons=[];
+            if(sel.profiles){
+                weapons.push(...sel.profiles
+                    .filter(p=>p.typeName==="Ranged Weapons"||p.typeName==="Melee Weapons")
+                    .map(profile=>{
+                        let isMelee=(profile.typeName==="Melee Weapons");
+                        let bsVal="";
+                        let wsVal="";
+                        const characteristics={};
+
+                        profile.characteristics.forEach(c=>{
+                            const nm=c.name;
+                            let val=c.$text;
+                            if(nm==="BS"){bsVal=val;} else if(nm==="WS"){wsVal=val;} else{
+                                characteristics[nm]=val;
+                            }
+                        });
+
+                        if(isMelee){
+                            characteristics["BS/WS"]=wsVal;
+                        } else{
+                            characteristics["BS/WS"]=bsVal;
+                        }
+
+                        characteristics["BS/WS"]=sanitizeValue("BS/WS",characteristics["BS/WS"]);
+
+                        if(characteristics["Range"]){
+                            characteristics["Range"]=sanitizeValue("Range",characteristics["Range"]);
+                        }
+                        if(characteristics["AP"]){
+                            characteristics["AP"]=sanitizeValue("AP",characteristics["AP"]);
+                        }
+                        if(characteristics["Keywords"]){
+                            characteristics["Keywords"]=sanitizeValue("Keywords",characteristics["Keywords"]);
+							characteristics["Keywords"]=characteristics["Keywords"].split(",").map(s => s.trim());
+							console.log(characteristics["Keywords"])
+                        }
+
+                        return{
+                            name:profile.name||"Unnamed Weapon",
+                            characteristics
+                        };
+                    })
+                );
+            }
+            if(sel.selections){
+                sel.selections.forEach(s=>{
+                    weapons.push(...gatherUnitWeapons(s));
+                });
+            }
+            return weapons;
+        }
+
+		function gatherUnitAbilities(sel) { //--------------------------------------------------
 			let unitAbilities=[];
 			if (!sel.profiles) return unitAbilities;
 			
@@ -198,59 +317,7 @@
 			return unitAbilities;
 		}
 
-        function gatherUnitWeapons(sel){
-            let weapons=[];
-            if(sel.profiles){
-                weapons.push(...sel.profiles
-                    .filter(p=>p.typeName==="Ranged Weapons"||p.typeName==="Melee Weapons")
-                    .map(profile=>{
-                        let isMelee=(profile.typeName==="Melee Weapons");
-                        let bsVal="";
-                        let wsVal="";
-                        const characteristics={};
-
-                        profile.characteristics.forEach(c=>{
-                            const nm=c.name;
-                            let val=c.$text;
-                            if(nm==="BS"){bsVal=val;} else if(nm==="WS"){wsVal=val;} else{
-                                characteristics[nm]=val;
-                            }
-                        });
-
-                        if(isMelee){
-                            characteristics["BS/WS"]=wsVal;
-                        } else{
-                            characteristics["BS/WS"]=bsVal;
-                        }
-
-                        characteristics["BS/WS"]=sanitizeValue("BS/WS",characteristics["BS/WS"]);
-
-                        if(characteristics["Range"]){
-                            characteristics["Range"]=sanitizeValue("Range",characteristics["Range"]);
-                        }
-                        if(characteristics["AP"]){
-                            characteristics["AP"]=sanitizeValue("AP",characteristics["AP"]);
-                        }
-                        if(characteristics["Keywords"]){
-                            characteristics["Keywords"]=sanitizeValue("Keywords",characteristics["Keywords"]);
-                        }
-
-                        return{
-                            name:profile.name||"Unnamed Weapon",
-                            characteristics
-                        };
-                    })
-                );
-            }
-            if(sel.selections){
-                sel.selections.forEach(s=>{
-                    weapons.push(...gatherUnitWeapons(s));
-                });
-            }
-            return weapons;
-        }
-
-        function parseForce(force){
+        function parseForce(force){ //--------------------------------------------------
             let result=[];
             if(force.selections){
                 force.selections.forEach(sel=>{
@@ -262,7 +329,7 @@
             return result;
         }
 
-		function collectTopLevelUnits(sel, arr, ancestorIsUnit = false) { // FIND THE ORIGINAL PARENT FOR EACH UNIT
+		function collectTopLevelUnits(sel, arr, ancestorIsUnit = false) { //--------------------------------------------------
 			if ((sel.type === "unit" || sel.type === "model") && !ancestorIsUnit) {
 				const nm = sel.name || "Unnamed Unit";
 				const unitWeapons = gatherUnitWeapons(sel); // EXTRACT WEAPON PROFILES
@@ -285,7 +352,7 @@
 			}
 		}
 
-        function parseData(data){ // INPUT VALIDATION
+        function parseData(data){ //--------------------------------------------------
             if(!data.roster||!Array.isArray(data.roster.forces)){
                 alert("Invalid JSON structure: Missing roster or forces array.");
                 return;
@@ -298,7 +365,7 @@
 			console.log("Final Units Array after Parsing:", JSON.stringify(units, null, 2));
 		}
 
-		function unifyUnits() {
+		function unifyUnits() { //--------------------------------------------------
 			console.trace("🔍 unifyUnits() was called here!");
 			
 			let nameMap = {};
@@ -335,7 +402,9 @@
 			console.log("Units after unifyUnits():", JSON.stringify(units, null, 2));
 		}
 
-		function displayReviewForm() {
+
+// REVIEW -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		function displayReviewForm() { //--------------------------------------------------
 			// SET UP REVIEW PAGE
 			pageState="review";
 			document.getElementById("flashcard-section").style.display = "none";
@@ -382,7 +451,6 @@
 				unitColDefs.push({ name: k, width: colWidth(k) });
 			});
 
-			<!-- console.log("Final Grid Template Columns for Rows:", unitTable.style.gridTemplateColumns); -->
 
 			const unitHeadRow = document.createElement("div");
 			unitHeadRow.className = "uheader-row";
@@ -403,8 +471,6 @@
 			unitTable.appendChild(unitHeadRow);
 
 			units.forEach((unit, uIndex) => {
-				<!-- console.log(`Creating row for unit: ${unit.name} (Index: ${uIndex})`); -->
-
 				const uRow = document.createElement("div");
 				uRow.className = "unit-row";
 				uRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
@@ -431,7 +497,6 @@
 					uRow.appendChild(cCell);
 				});
 
-				<!-- console.log(`Appending row for ${unit.name}`); -->
 				unitTable.appendChild(uRow);
 			});
 
@@ -464,7 +529,7 @@
 						return "150px";
 					}
 					if (nm === "Keywords") {
-						return "minmax(80px, 150px)";
+						return "minmax(80px, 1fr)";
 					}
 					if (["Range", "BS/WS", "A", "S", "AP", "D"].includes(nm)) {
 						return "minmax(50px, 80px)";
@@ -519,29 +584,23 @@
 						}
 
 						if (key === "Keywords") {
-							const container = document.createElement("div");
-							container.className = "keyword-container";
-							container.setAttribute("data-unit-index", uIndex);
-							container.setAttribute("data-weapon-index", wIx);
-							container.setAttribute("data-key", key);
-							container.value = val;
+							if (Array.isArray(val) && !(val.length === 1 && val[0].trim() === "")) {
+								const container = document.createElement("div");
+								container.className = "keyword-container";
+								container.setAttribute("data-unit-index", uIndex);
+								container.setAttribute("data-weapon-index", wIx);
+								container.setAttribute("data-key", key);
 							
-							const tagsDiv = document.createElement("div");
-							tagsDiv.className = "tags";
-							
-							const inp = document.createElement("input");
-							inp.type = "text";
-							inp.className = "keyword-input";
-							
-							const suggDiv = document.createElement("div");
-							suggDiv.className = "suggestions";
-							
-							container.appendChild(tagsDiv);
-							container.appendChild(inp);
-							container.appendChild(suggDiv);
-							cCell.appendChild(container);
-							
-							setupKeywordInput(container);
+								const tagsDiv = document.createElement("div");
+								tagsDiv.className = "tags";
+								
+								val.forEach(kw => {
+									createTagElement(kw, tagsDiv, true);
+								});
+								
+								container.appendChild(tagsDiv);
+								cCell.appendChild(container);
+							}							
 						} else {
 							const inp = document.createElement("input");
 							inp.type = "text";
@@ -616,14 +675,7 @@
 			document.getElementById("accept-button").style.display = "block";
 		}
 
-		function autoSizeAllTextareas() {
-			document.querySelectorAll("textarea").forEach(ta => {
-				ta.style.height = "auto";
-				ta.style.height = ta.scrollHeight + "px";
-			});
-		}
-
-		function updateUnitCharacteristic(ev) {
+		function updateUnitCharacteristic(ev) { //--------------------------------------------------
 			const uIndex = ev.target.getAttribute("data-unit-index");
 			const key = ev.target.getAttribute("data-key");
 			const val = ev.target.value;
@@ -635,7 +687,7 @@
 			units[uIndex].profiles[key] = sanitizeValue(key, val);
 		}
 
-        function updateWeaponCharacteristic(ev){
+        function updateWeaponCharacteristic(ev){ //--------------------------------------------------
             const uIndex=ev.target.getAttribute("data-unit-index");
             const wIndex=ev.target.getAttribute("data-weapon-index");
             const key=ev.target.getAttribute("data-key");
@@ -646,103 +698,22 @@
             units[uIndex].weapons[wIndex].characteristics[key]=sanitizeValue(key,val);
         }
 
-		function updateAbilities(ev) {
+		function updateAbilities(ev) { //--------------------------------------------------
 			const uIndex=ev.target.getAttribute("data-unit-index");
 			const aIndex=ev.target.getAttribute("data-ability-index");
 			const val=ev.target.value;
 			units[uIndex].abilities[aIndex].description=val;
 		}
 
-        function shuffleArray(arr){
-            for(let i=arr.length-1;i>0;i--){
-                const j=Math.floor(Math.random()*(i+1));
-                [arr[i],arr[j]]=[arr[j],arr[i]];
-            }
+        function backToEditing(){  //--------------------------------------------------
+            document.getElementById("flashcard-section").style.display="none";
+            pageState = "review";
+			displayReviewForm();
         }
 
-		function formatAbilities(text) {
-			return text
-				.replace(/\^\^\*\*(.*?)\^\^\*\*/g, (_, inner) => {
-					return inner.toUpperCase();
-			})
-				.replace(/\^\^\*\*(.*?)\*\*\^\^/g, (_, inner) => {
-					return inner.toUpperCase();
-			})
-				.replace(/\*\*\^\^(.*?)\^\^\*\*/g, (_, inner) => {
-					return inner.toUpperCase();
-			})
-				.replace(/\*\*\^\^(.*?)\*\*\^\^/g, (_, inner) => {
-					return inner.toUpperCase();
-			});
-		}
 
-        function tokenizeKeywords(str){
-            const cleaned=str.replace(/[^a-z0-9+]+/g," ").trim();
-            if(!cleaned)return new Set();
-            return new Set(cleaned.split(/\s+/));
-        }
-
-        function setsEqual(a,b){
-            if(a.size!==b.size)return false;
-            for(const x of a){
-                if(!b.has(x))return false;
-            }
-            return true;
-        }
-		
-		function createTagElement(keyword, tagsDiv) {
-			const tag = document.createElement("span");
-			tag.className = "tag";
-			tag.textContent = keyword;
-			tag.onclick = () => tag.remove();
-			tagsDiv.appendChild(tag);
-		}
-		
-		function setupKeywordInput(container) {
-			const input = container.querySelector(".keyword-input");
-			const tagsDiv = container.querySelector(".tags");
-			const suggDiv = container.querySelector(".suggestions");
-			
-			input.addEventListener("input", () => {
-				const val = input.value.toLowerCase();
-				suggDiv.innerHTML = "";
-				
-				if (!val) return;
-				
-				const matches = keywordSuggestions.filter(k =>
-					k.toLowerCase().includes(val)
-				);
-				
-				matches.forEach(match => {
-					const option = document.createElement("div");
-					option.className = "suggestion";
-					option.textContent = match;
-					option.onclick = () => {
-						createTagElement(match, tagsDiv);
-						input.value = "";
-						suggDiv.innerHTML = "";
-					};
-					suggDiv.appendChild(option);
-				});
-			});
-			
-			input.addEventListener("keydown", e => {
-				if (e.key === "Enter") {
-					e.preventDefault();
-					const first = suggDiv.querySelector(".suggestion");
-					if (first) {
-						first.click();
-					}
-				}
-			});
-		}
-		
-		function getUserKeywords(container) {
-			return Array.from(container.querySelectorAll(".tag"))
-				.map(tag => tag.textContent.trim().toLowerCase());
-		}
-
-        function startFlashcards(){ // START
+// FLASHCARDS -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        function startFlashcards(){ //--------------------------------------------------
             document.getElementById("review-section").style.display="none";
             document.getElementById("accept-button").style.display="none";
             document.getElementById("flashcard-section").style.display="block";
@@ -760,13 +731,7 @@
             displayFlashcard();
         }
 
-        function backToEditing(){ 
-            document.getElementById("flashcard-section").style.display="none";
-            pageState = "review";
-			displayReviewForm();
-        }
-
-        function updateProgress(){
+        function updateProgress(){ //--------------------------------------------------
             const flashContainer=document.getElementById("flashcard");
             const prog=flashContainer.querySelector("#progress");
             if(!prog)return;
@@ -776,7 +741,7 @@
             prog.textContent=`   Remaining: ${inc}   Correct: ${cor}   Incorrect: ${def}`;
         }
 
-        function displayFlashcard(){
+        function displayFlashcard(){ //--------------------------------------------------
             const flashContainer=document.getElementById("flashcard");
             flashContainer.innerHTML="";
 
@@ -1139,7 +1104,7 @@
 			autoSizeAllTextareas();
         }
 
-        function submitAnswers(){ //----------------------------------------------------------------------------------------------------------------------------
+        function submitAnswers(){ //--------------------------------------------------
             const flashContainer=document.getElementById("flashcard");
 			console.log("submitAnswers called", { currentIndex, incorrectBucket });
             if(!flashContainer)return;
@@ -1203,7 +1168,7 @@
             updateProgress();
         }
 
-        function revealAnswers(){
+        function revealAnswers(){ //--------------------------------------------------
 			const flashContainer=document.getElementById("flashcard");
             if(!flashContainer)return;
 			
@@ -1240,7 +1205,7 @@
 			autoSizeAllTextareas();
         }
 
-		function markCardCorrect() {
+		function markCardCorrect() { //--------------------------------------------------
 			const card = incorrectBucket.splice(currentIndex, 1)[0];
 			answersRevealed=false
 			
@@ -1264,7 +1229,7 @@
 			displayFlashcard();
 		}
 
-		function markCardIncorrect() {
+		function markCardIncorrect() { //--------------------------------------------------
 			const card = incorrectBucket.splice(currentIndex, 1)[0];
 			answersRevealed=false
 
@@ -1285,9 +1250,65 @@
 		} 
 
 
+//	KEYWORD TAGS -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+		function setupKeywordInput(container) { //--------------------------------------------------
+			const input = container.querySelector(".keyword-input");
+			const tagsDiv = container.querySelector(".tags");
+			const suggDiv = container.querySelector(".suggestions");
+			
+			input.addEventListener("input", () => {
+				const val = input.value.toLowerCase();
+				suggDiv.innerHTML = "";
+				
+				if (!val) return;
+				
+				const matches = keywordSuggestions.filter(k =>
+					k.toLowerCase().includes(val)
+				);
+				
+				matches.forEach(match => {
+					const option = document.createElement("div");
+					option.className = "suggestion";
+					option.textContent = match;
+					option.onclick = () => {
+						createTagElement(match, tagsDiv);
+						input.value = "";
+						suggDiv.innerHTML = "";
+					};
+					suggDiv.appendChild(option);
+				});
+			});
+			
+			input.addEventListener("keydown", e => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					const first = suggDiv.querySelector(".suggestion");
+					if (first) {
+						first.click();
+					}
+				}
+			});
+		}
+		
+		function createTagElement(keyword, tagsDiv, dis) { //--------------------------------------------------
+			const tag = document.createElement("span");
+			tag.className = "tag";
+			tag.textContent = keyword;
+			tag.disabled = dis;
+			if (!tag.disabled) {
+				tag.onclick = () => tag.remove();
+				tag.style.cursor = "cursor";
+			}
+			tagsDiv.appendChild(tag);
+		}
+		
+		function getUserKeywords(container) { //--------------------------------------------------
+			return Array.from(container.querySelectorAll(".tag"))
+				.map(tag => tag.textContent.trim().toLowerCase());
+		}
 
 
-// DEBUG STUFF
+// DEBUG STUFF -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
         console.log("Test: parseData with minimal JSON...");
         (function(){
             let testJSON={roster:{forces:[]}};
@@ -1325,5 +1346,7 @@
     <div id="flashcard-section" style="display:none;">
         <div id="flashcard"></div>
     </div>
+	
+	
 </body>
 </html>
