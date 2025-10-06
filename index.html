@@ -29,6 +29,13 @@
 			"Devastating Wounds",
 			"Precision",
 			"Hazardous",
+			"Torrent",
+			"Ignores Cover",
+			"Psychic",
+			"Lance",
+			"Indirect Fire",
+			"Extra Attacks",
+			
 		];
 		
 		for (let i=1; i<=3; i++) {
@@ -43,6 +50,10 @@
 			keywordSuggestions.push("Anti-Character " + i + "+");
 			keywordSuggestions.push("Anti-Beast " + i + "+");
 			keywordSuggestions.push("Anti-Titanic " + i + "+");
+		}
+		
+		for (let i=1; i<=8; i++) {
+			keywordSuggestions.push("Melta " + i);
 		}
 		
 		console.log(keywordSuggestions);
@@ -1473,6 +1484,7 @@
 				<li>Enter only numbers for responses except for dice rolls where appropriate (ie. d6+1 damage)</li>
 				<li>Testing will cycle through all cards first, then again through any marked incorrect until all are marked correct.</li>
 				<li>Ability responses are not automatically graded. User must manually review to confirm if they are satisfied then mark card appropriately.</li>
+				<li>When editing weapon keywords, unconfirmed or incorrect keywords can be removed by clicking on them.</li>
 			</ul>
 		</div>
 		<div id="review-section"></div><br>
