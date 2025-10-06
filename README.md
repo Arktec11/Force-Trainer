@@ -1,0 +1,7 @@
+Export JSON file from New Recruit army list and upload here. Currently only supports New Recruit JSON exports.
+Review unit characteristics, weapons, abilities, etc. to ensure upload worked correctly.
+Alter any stats as desired (ie. enhancements, strats, etc.)
+If desired, alter or simplify correct ability text seen on Flashcards.
+Enter only numbers for responses except for dice rolls where appropriate (ie. d6+1 damage)
+Testing will cycle through all cards first, then again through any marked incorrect until all are marked correct.
+Ability responses are not automatically graded. User must manually review to confirm if they are satisfied then mark card appropriately.
