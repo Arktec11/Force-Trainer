@@ -1148,7 +1148,7 @@
 					const wIx = container.getAttribute("data-weapon-index");
 
 					const correctTags = (unit.weapons[wIx].characteristics["Keywords"] || [])
-						.map(t => t.trim().toLowerCase();
+						.map(t => t.trim().toLowerCase());
 					const userTags = getUserKeywords(container)
 						.map(t => t.trim().toLowerCase());
 					const correctSet = new Set(correctTags);
