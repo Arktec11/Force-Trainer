@@ -21,7 +21,6 @@
 		const keywordSuggestions = [
 			"Assault",
 			"Heavy",
-			"Melta",
 			"Twin-Linked",
 			"Lethal Hits",
 			"Blast",
@@ -35,26 +34,24 @@
 			"Lance",
 			"Indirect Fire",
 			"Extra Attacks",
-			
+			"Conversion",
 		];
 		
-		for (let i=1; i<=3; i++) {
-			keywordSuggestions.push("Sustained Hits " + i);
-			keywordSuggestions.push("Rapid Fire " + i);
-		}
+		const keywordsWithSuffix = [
+			"Melta",
+			"Rapid Fire",
+			"Sustained Hits",
+			"Anti-Beast",
+			"Anti-Infantry",
+			"Anti-Monster",
+			"Anti-Vehicle",
+			"Anti-Titanic",
+			"Anti-Fly",
+			"Anti-Character",
+			"Anti-Psychic",
+		];
 		
-		for (let i=2; i<=5; i++) {
-			keywordSuggestions.push("Anti-Infantry " + i + "+");
-			keywordSuggestions.push("Anti-Vehicle " + i + "+");
-			keywordSuggestions.push("Anti-Monster " + i + "+");
-			keywordSuggestions.push("Anti-Character " + i + "+");
-			keywordSuggestions.push("Anti-Beast " + i + "+");
-			keywordSuggestions.push("Anti-Titanic " + i + "+");
-		}
-		
-		for (let i=1; i<=8; i++) {
-			keywordSuggestions.push("Melta " + i);
-		}
+		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
 		
 		console.log(keywordSuggestions);
 
@@ -1151,7 +1148,7 @@
 					const wIx = container.getAttribute("data-weapon-index");
 
 					const correctTags = (unit.weapons[wIx].characteristics["Keywords"] || [])
-						.map(t => t.trim().toLowerCase());
+						.map(t => t.trim().toLowerCase();
 					const userTags = getUserKeywords(container)
 						.map(t => t.trim().toLowerCase());
 					const correctSet = new Set(correctTags);
@@ -1346,16 +1343,21 @@
 
 			// Helper: refresh datalist with remaining suggestions
 			function refreshSuggestions() {
-			  datalist.innerHTML = "";
-			  const used = new Set(
-				[...tagsDiv.querySelectorAll(".tag.revealed")].map(t => t.textContent.toLowerCase())
-			  );
-			  keywordSuggestions
-				.filter(kw => !used.has(kw.toLowerCase()))
-				.forEach(kw => {
-				  const opt = document.createElement("option");
-				  opt.value = kw;
-				  datalist.appendChild(opt);
+				datalist.innerHTML = "";
+			  
+				const used = new Set(
+					[...tagsDiv.querySelectorAll(".tag.revealed")].map(t => t.textContent.toLowerCase())
+				);
+			  
+				const filtered = keywordSuggestions.filter(kw => {
+					const kwLower = kw.toLowerCase();
+					return !Array.from(used).some(u => u.includes(kwLower) ||kwLower.includes(u));
+				});
+				
+				filtered.forEach(kw => {
+					const opt = document.createElement("option");
+					opt.value = kw;
+					datalist.appendChild(opt);
 				});
 			}
 
@@ -1386,9 +1388,11 @@
 			// Handle typing and confirmation
 			input.addEventListener("input", () => {
 				const val = input.value.toLowerCase().trim();
+				
 				const match = keywordSuggestions.find(
 					kw => kw.toLowerCase() === val.toLowerCase()
 				);
+				
 				if (match) addTag(match);
 			});
 
@@ -1398,17 +1402,30 @@
 					const val = input.value.trim();
 					
 					if (val.length > 0) {
-						e.preventDefault();
-
-						// Prefer exact match, otherwise take the first suggestion
+						e.preventDefault();						
+						
+						const base = keywordsWithSuffix.find(
+							kw =>  val.toLowerCase().startsWith(kw.toLowerCase())
+						);
+						
+						if (base) {
+							if (val.toLowerCase() === base.toLowerCase()) {
+								console.log("waiting")
+								return;
+							} else {
+								let match = base + val.replace(base.toLowerCase(),"");
+								addTag(match);
+							}
+						}
+						
 						const match = keywordSuggestions.find(
 						  kw => kw.toLowerCase() === val.toLowerCase()
 						) || keywordSuggestions.find(kw =>
 						  kw.toLowerCase().startsWith(val.toLowerCase())
 						);
-
+						
 						if (match) addTag(match);
-						else input.value = ""; // clear invalid
+						else input.value = "";
 					} else if (e.key === "Enter") {
 						input.blur();
 						
