@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trainer</title>
+    <title>Force Trainer</title>
 	<link rel="stylesheet" href="styles.css">
 	
     <script>
@@ -596,7 +596,7 @@
 							
 							correctTags.forEach(kw => {
 								const tag = document.createElement("span");
-								tag.className = "tag hidden";
+								tag.className = "tag";
 								tag.textContent = kw;
 								tagsDiv.appendChild(tag);
 							});
@@ -1237,7 +1237,8 @@
 			});
 			
 			document.querySelectorAll(".tag").forEach(t => {
-				t.classList.remove(".hidden");
+				t.classList.remove("hidden");
+				t.classList.add("revealed");
 			});
 
             const sb=document.getElementById("submitBtn");
@@ -1420,28 +1421,12 @@
 			refreshSuggestions();
 		}
 		
-		function createTagElement(keyword, tagsDiv, dis) { //--------------------------------------------------
-			const tag = document.createElement("span");
-			tag.className = "tag";
-			tag.textContent = keyword;
-			tag.disabled = dis;
-			if (!tag.disabled) {
-				tag.onclick = () => tag.remove();
-				tag.style.cursor = "cursor";
-			}
-			tagsDiv.appendChild(tag);
-		}
-		
 		function getUserKeywords(container) { //--------------------------------------------------
 			let userTags = Array.from(container.querySelectorAll(".tag.revealed"))
 				.map(tag => tag.textContent.trim().toLowerCase())
 				.filter(t => t.length > 0);
 			
 			return userTags;
-		}
-
-		function getCorrectTags() {
-			
 		}
 
 
@@ -1476,14 +1461,25 @@
 </head>
 
 <body>
-    <h1>Flashcards</h1>
-    <input type="file" id="file-input" accept="application/json" onchange="handleFileUpload(event)">
-    <div id="review-section"></div><br>
-    <button id="accept-button" style="display:none;" onclick="startFlashcards()">Accept and Start Flashcards</button>
-    <div id="flashcard-section" style="display:none;">
-        <div id="flashcard"></div>
-    </div>
-	
-	
+	<div id="page-limits">
+		<h1>Force Trainer</h1>
+		<input type="file" id="file-input" accept="application/json" onchange="handleFileUpload(event)">
+		<div id="readme-section">
+			<ul>
+				<li>Export JSON file from New Recruit army list and upload here. Currently only supports New Recruit JSON exports.</li>
+				<li>Review unit characteristics, weapons, abilities, etc. to ensure upload worked correctly.</li>
+				<li>Alter any stats as desired (ie. enhancements, strats, etc.)</li>
+				<li>If desired, alter or simplify correct ability text seen on Flashcards.</li>
+				<li>Enter only numbers for responses except for dice rolls where appropriate (ie. d6+1 damage)</li>
+				<li>Testing will cycle through all cards first, then again through any marked incorrect until all are marked correct.</li>
+				<li>Ability responses are not automatically graded. User must manually review to confirm if they are satisfied then mark card appropriately.</li>
+			</ul>
+		</div>
+		<div id="review-section"></div><br>
+		<button id="accept-button" style="display:none;" onclick="startFlashcards()">Accept and Start Flashcards</button>
+		<div id="flashcard-section" style="display:none;">
+			<div id="flashcard"></div>
+		</div>
+	</div>
 </body>
 </html>
