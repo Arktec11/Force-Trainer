@@ -92,24 +92,29 @@
 }
 .keyword-cell {
 	display: flex;
-	justify-content: flex-start;
-	gap: 4px;
+	align-items: stretch;
 }
 
 .keyword-container {
 	display: flex;
 	flex-wrap: wrap;
-	align-items: center;
+	align-items: stretch;
 	gap: 5px;
+	width: 100%;
 }
 .keyword-input {
 	flex: 0 0 auto;
-	min-width: 60px;
+	width: 120px;
+	height: 100%;
+	padding: 5px;
+	box-sizing: border-box;
+	height: calc(1.5em + 10px);
 }
 .tags {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 5px;
+	align-items: flex-start;
 }
 .tag {
 	background: #ddd;
@@ -117,7 +122,22 @@
 	border-radius: 12px;
 	text-align: left;
 	white-space: nowrap;
+	height: auto;
+	line-height: 1.2;
 }
+.tag.revealed {
+	display: inline-block;
+	background: #ddd;
+}
+.tag.correct {
+	background: lightgreen;
+	border: 1px solid green;
+}
+.tag.incorrect {
+	background: #fbb;
+	border: 1px solid red;
+}
+
 .suggestions {
 	position: absolute;
 	background: white;
