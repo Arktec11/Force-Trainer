@@ -1,4 +1,4 @@
-import { units, testSettings, setPageState } from './state.js';
+import { units, setPageState } from './state.js';
 import { sanitizeValue, autoSizeAllTextareas } from './helpers.js';
 import { startFlashcards } from './flashcards.js';
 
@@ -62,17 +62,7 @@ export function displayReviewForm() {
 	unitCharacteristics.forEach(k => {
 		const c = document.createElement("div");
 		c.className = "header-cell";
-
-		const chk = document.createElement("input");
-		chk.type = "checkbox";
-		chk.checked = true;
-		chk.addEventListener("change", e => {
-			if (e.target.checked) testSettings.excludedColumns.delete(k);
-			else testSettings.excludedColumns.add(k);
-		});
-
-		c.appendChild(chk);
-		c.append(" " + k);
+		c.textContent = k;
 		unitHeadRow.appendChild(c);
 	});
 
@@ -85,18 +75,7 @@ export function displayReviewForm() {
 
 		const uNameCell = document.createElement("div");
 		uNameCell.className = "cell unit-left";
-
-		const chk = document.createElement("input");
-		chk.type = "checkbox";
-		chk.checked = true;
-		chk.addEventListener("change", e => {
-			const name = unit.name;
-			if (e.target.checked) testSettings.excludedUnits.delete(name);
-			else testSettings.excludedUnits.add(name);
-		});
-
-		uNameCell.appendChild(chk);
-		uNameCell.append(" " + unit.name);
+		uNameCell.textContent = unit.name;
 		uRow.appendChild(uNameCell);
 
 		unitCharacteristics.forEach(key => {
@@ -177,17 +156,7 @@ export function displayReviewForm() {
 		allKeys.forEach(k => {
 			const c = document.createElement("div");
 			c.className = "header-cell";
-
-			const chk = document.createElement("input");
-			chk.type = "checkbox";
-			chk.checked = true;
-			chk.addEventListener("change", e => {
-				if (e.target.checked) testSettings.excludedColumns.delete(k);
-				else testSettings.excludedColumns.add(k);
-			});
-
-			c.appendChild(chk);
-			c.append(" " + k);
+			c.textContent = k;
 			weaponHeadRow.appendChild(c);
 		});
 		weaponTable.appendChild(weaponHeadRow);

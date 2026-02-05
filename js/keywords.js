@@ -15,6 +15,7 @@ export const keywordSuggestions = [
 	"Indirect Fire",
 	"Extra Attacks",
 	"Conversion",
+	"One Shot",
 ];
 
 export const keywordsWithSuffix = [
@@ -86,10 +87,33 @@ export function setupKeywordInput(container) {
 		});
 	}
 
-	// Helper: create tag safely (no duplicates)
+	// Helper: create tag safely (no duplicates, updates suffix numbers)
 	function addTag(value) {
 		const trimmed = value.trim();
 		if (!trimmed) return;
+
+		// Block keywords that still have [X] placeholder
+		if (/\[x\]/i.test(trimmed)) return;
+
+		// Check if this is a suffixed keyword and find existing tag with same base
+		const base = keywordsWithSuffix.find(
+			kw => trimmed.toLowerCase().startsWith(kw.toLowerCase())
+		);
+
+		if (base) {
+			const existingTag = [...tagsDiv.querySelectorAll(".tag")]
+				.find(t => t.textContent.toLowerCase().startsWith(base.toLowerCase()));
+
+			if (existingTag) {
+				// Update the existing tag's number instead of adding a duplicate
+				existingTag.textContent = trimmed;
+				existingTag.classList.remove("hidden");
+				existingTag.classList.add("revealed");
+				existingTag.onclick = () => existingTag.remove();
+				input.value = "";
+				return;
+			}
+		}
 
 		const tag = [...tagsDiv.querySelectorAll(".tag")]
 			.find(t => t.textContent.toLowerCase() === trimmed.toLowerCase());
@@ -117,7 +141,8 @@ export function setupKeywordInput(container) {
 			kw => kw.toLowerCase() === val.toLowerCase()
 		);
 
-		if (match) addTag(match);
+		// Don't auto-accept suffixed placeholders like "Sustained Hits [X]"
+		if (match && !/\[x\]/i.test(match)) addTag(match);
 	});
 
 	// Handle Enter / Tab / selection
