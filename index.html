@@ -54,9 +54,6 @@
 		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
 
 		let testSettings = {
-			includeProfiles: true,
-			includeWeapons: true,
-			includeAbilities: true,
 			excludedColumns: new Set(),
 			excludedUnits: new Set(),
 			excludedWeapons: new Set(),
@@ -425,50 +422,6 @@
 			rev.style.display = "block";
 			rev.innerHTML = "";
 			
-			const togglesDiv = document.createElement("div");
-			togglesDiv.id = "global-section-toggles";
-			togglesDiv.style.marginBottom = "10px";
-			togglesDiv.style.display = "flex";
-			togglesDiv.style.gap = "20px";
-			togglesDiv.style.alignItems = "center";
-			
-			function createToggle(labelText, defaultChecked, onChange) {
-				const wrapper = document.createElement("label");
-				wrapper.style.display = "flex";
-				wrapper.style.alignItems = "center";
-				wrapper.style.gap = "6px";
-				
-				const chk = document.createElement("input");
-				chk.type = "checkbox";
-				chk.checked = defaultChecked;
-				chk.addEventListener("change", onChange);
-				
-				const label = document.createElement("span");
-				label.textContent = labelText;
-				
-				wrapper.appendChild(chk);
-				wrapper.appendChild(label);
-				return wrapper;
-			}
-			
-			const profileToggle = createToggle("Unit Profiles", true, e => {
-				testSettings.includeProfiles = e.target.checked;
-			});
-			
-			const weaponToggle = createToggle("Weapons", true, e => {
-				testSettings.includeWeapons = e.target.checked;
-			});
-			
-			const abilityToggle = createToggle("Abilities", true, e => {
-				testSettings.includeAbilities = e.target.checked;
-			});
-			
-			togglesDiv.appendChild(profileToggle);
-			togglesDiv.appendChild(weaponToggle);
-			togglesDiv.appendChild(abilityToggle);
-			
-			rev.prepend(togglesDiv);
-			
 			// SET UP TOP ACCEPT BUTTON
 			const topButton = document.createElement("button");
 			topButton.textContent = "Accept and Start Flashcards";
@@ -813,11 +766,11 @@
 				.filter(u => !testSettings.excludedUnits.has(u.name))
 				.map(u => ({
 					...u,
-					weapons: testSettings.includeWeapons ? u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)) : [],
-					profiles: testSettings.includeProfiles ? Object.fromEntries(
+					weapons: u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)),
+					profiles: Object.fromEntries(
 						Object.entries(u.profiles).filter(([k]) => !testSettings.excludedColumns.has(k))
-					) : {},
-					abilities: testSettings.includeAbilities ? u.abilities : []
+					),
+					abilities: u.abilities
 				}));
             shuffleArray(incorrectBucket);
             correctBucket=[];
