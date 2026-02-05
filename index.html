@@ -54,9 +54,6 @@
 		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
 
 		let testSettings = {
-			includeProfiles: true,
-			includeWeapons: true,
-			includeAbilities: true,
 			excludedColumns: new Set(),
 			excludedUnits: new Set(),
 			excludedWeapons: new Set(),
@@ -341,7 +338,6 @@
                     collectTopLevelUnits(sel,result);
                 });
             }
-			<!-- console.log("Raw Parsed JSON Data:", JSON.stringify(units, null, 2)); -->
 
             return result;
         }
@@ -379,11 +375,9 @@
                 const theseUnits=parseForce(force);
                 units.push(...theseUnits);
             });
-			console.log("Final Units Array after Parsing:", JSON.stringify(units, null, 2));
 		}
 
 		function unifyUnits() { //--------------------------------------------------
-			console.trace("🔍 unifyUnits() was called here!");
 			
 			let nameMap = {};
 			units.forEach(u => {
@@ -416,7 +410,6 @@
 			}
 
 			units = Object.values(nameMap); // Convert back to array
-			console.log("Units after unifyUnits():", JSON.stringify(units, null, 2));
 		}
 
 
@@ -428,50 +421,6 @@
 			const rev = document.getElementById("review-section");
 			rev.style.display = "block";
 			rev.innerHTML = "";
-			
-			const togglesDiv = document.createElement("div");
-			togglesDiv.id = "global-section-toggles";
-			togglesDiv.style.marginBottom = "10px";
-			togglesDiv.style.display = "flex";
-			togglesDiv.style.gap = "20px";
-			togglesDiv.style.alignItems = "center";
-			
-			function createToggle(labelText, defaultChecked, onChange) {
-				const wrapper = document.createElement("label");
-				wrapper.style.display = "flex";
-				wrapper.style.alignItems = "center";
-				wrapper.style.gap = "6px";
-				
-				const chk = document.createElement("input");
-				chk.type = "checkbox";
-				chk.checked = defaultChecked;
-				chk.addEventListener("change", onChange);
-				
-				const label = document.createElement("span");
-				label.textContent = labelText;
-				
-				wrapper.appendChild(chk);
-				wrapper.appendChild(label);
-				return wrapper;
-			}
-			
-			const profileToggle = createToggle("Unit Profiles", true, e => {
-				testSettings.includeProfiles = e.target.checked;
-			});
-			
-			const weaponToggle = createToggle("Weapons", true, e => {
-				testSettings.includeWeapons = e.target.checked;
-			});
-			
-			const abilityToggle = createToggle("Abilities", true, e => {
-				testSettings.includeAbilities = e.target.checked;
-			});
-			
-			togglesDiv.appendChild(profileToggle);
-			togglesDiv.appendChild(weaponToggle);
-			togglesDiv.appendChild(abilityToggle);
-			
-			rev.prepend(togglesDiv);
 			
 			// SET UP TOP ACCEPT BUTTON
 			const topButton = document.createElement("button");
@@ -587,7 +536,9 @@
 			//WEAPONS AND ABILITIES SECTION ------------------------------------------------------------------------------------------------------------------
 			units.forEach((u, uIndex) => {
 				const unitDiv = document.createElement("div");
-				unitDiv.innerHTML = "<h3>"+ u.name +"</h3>";
+				const unitHeading = document.createElement("h3");
+				unitHeading.textContent = u.name;
+				unitDiv.appendChild(unitHeading);
 
 				const allKeysSet = new Set();
 				u.weapons.forEach(w => {
@@ -819,7 +770,7 @@
 					profiles: Object.fromEntries(
 						Object.entries(u.profiles).filter(([k]) => !testSettings.excludedColumns.has(k))
 					),
-					abilities: testSettings.includeAbilities ? u.abilities : []
+					abilities: u.abilities
 				}));
             shuffleArray(incorrectBucket);
             correctBucket=[];
@@ -1207,7 +1158,6 @@
 			flashContainer.appendChild(abilityTable);
 			flashContainer.appendChild(btnDiv);
 			
-			<!-- flashContainer.insertAdjacentHTML("beforeend", btnHTML); -->
 			
             updateProgress();
 			flashContainer.querySelectorAll("input")[0].focus();
@@ -1219,7 +1169,6 @@
 			setTimeout(() => justSubmitted = false, 200);
 			
 			const flashContainer=document.getElementById("flashcard");
-			console.log("submitAnswers called", { currentIndex, incorrectBucket });
             if(!flashContainer)return;
 
             const unit=incorrectBucket[currentIndex];
@@ -1266,9 +1215,6 @@
 						(userTags.length === correctTags.length &&
 						userTags.every(t => correctSet.has(t)));
 
-					console.log(unit.weapons[wIx].name + " " + correctTags.length + " correct tags - " + userTags.length + " user tags")
-					console.log("kwCorrect=" + kwCorrect)
-					console.log("bothEmpty=" + bothEmpty)
 
 					inp.style.border = kwCorrect ? "3px solid green" : "3px solid red";
 					inp.disabled = kwCorrect;
@@ -1470,7 +1416,6 @@
 					wrongTag.textContent = trimmed;
 					wrongTag.onclick = () => wrongTag.remove();
 					tagsDiv.appendChild(wrongTag);
-					console.log("Added wrong tag: " + wrongTag.textContent)
 				}
 				
 				input.value = "";
@@ -1501,7 +1446,6 @@
 						
 						if (base) {
 							if (val.toLowerCase() === base.toLowerCase()) {
-								console.log("waiting")
 								return;
 							} else {
 								let match = base + val.replace(base.toLowerCase(),"");
@@ -1549,33 +1493,6 @@
 		}
 
 
-// DEBUG STUFF -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        console.log("Test: parseData with minimal JSON...");
-        (function(){
-            let testJSON={roster:{forces:[]}};
-            parseData(testJSON);
-            console.log("Units array after parse:",units);
-        })();
-
-        console.log("Test: Checking handleFileUpload is defined...");
-        if(typeof handleFileUpload==="function"){
-            console.log("handleFileUpload is properly defined.");
-        } else{
-            console.error("handleFileUpload is NOT defined!");
-        }
-
-        // Additional test case for null input safety
-        console.log("Test: verify that submitAnswers doesn't throw if an input is null...");
-        (function(){
-            // We'll call submitAnswers without any real DOM.
-            // Expect no error.
-            submitAnswers();
-            console.log("submitAnswers invoked with no DOM - no error thrown.");
-        })();
-
-        // Additional test for no multiple 'fc' in same scope
-        console.log("Test: ensure no repeated 'fc' declarations in the same function.");
-        console.log("No conflicts found.");
     </script>
 </head>
 
