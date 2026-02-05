@@ -52,8 +52,15 @@
 		];
 		
 		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
-		
-		console.log(keywordSuggestions);
+
+		let testSettings = {
+			includeProfiles: true,
+			includeWeapons: true,
+			includeAbilities: true,
+			excludedColumns: new Set(),
+			excludedUnits: new Set(),
+			excludedWeapons: new Set(),
+		};
 
 		document.addEventListener("DOMContentLoaded", () => {
 			document.addEventListener("keydown", function(event) {
@@ -421,7 +428,51 @@
 			const rev = document.getElementById("review-section");
 			rev.style.display = "block";
 			rev.innerHTML = "";
-
+			
+			const togglesDiv = document.createElement("div");
+			togglesDiv.id = "global-section-toggles";
+			togglesDiv.style.marginBottom = "10px";
+			togglesDiv.style.display = "flex";
+			togglesDiv.style.gap = "20px";
+			togglesDiv.style.alignItems = "center";
+			
+			function createToggle(labelText, defaultChecked, onChange) {
+				const wrapper = document.createElement("label");
+				wrapper.style.display = "flex";
+				wrapper.style.alignItems = "center";
+				wrapper.style.gap = "6px";
+				
+				const chk = document.createElement("input");
+				chk.type = "checkbox";
+				chk.checked = defaultChecked;
+				chk.addEventListener("change", onChange);
+				
+				const label = document.createElement("span");
+				label.textContent = labelText;
+				
+				wrapper.appendChild(chk);
+				wrapper.appendChild(label);
+				return wrapper;
+			}
+			
+			const profileToggle = createToggle("Unit Profiles", true, e => {
+				testSettings.includeProfiles = e.target.checked;
+			});
+			
+			const weaponToggle = createToggle("Weapons", true, e => {
+				testSettings.includeWeapons = e.target.checked;
+			});
+			
+			const abilityToggle = createToggle("Abilities", true, e => {
+				testSettings.includeAbilities = e.target.checked;
+			});
+			
+			togglesDiv.appendChild(profileToggle);
+			togglesDiv.appendChild(weaponToggle);
+			togglesDiv.appendChild(abilityToggle);
+			
+			rev.prepend(togglesDiv);
+			
 			// SET UP TOP ACCEPT BUTTON
 			const topButton = document.createElement("button");
 			topButton.textContent = "Accept and Start Flashcards";
@@ -450,7 +501,7 @@
 			});
 
 			function colWidth(k) {
-				if (["M", "SV", "T", "W", "LD", "OC"].includes(k)) {
+				if (["M", "SV", "T", "W", "LD", "OC","Weapons","Abilities"].includes(k)) {
 					return "minmax(30px, 80px)";
 				}
 				return "minmax(60px, 1fr)";
@@ -474,7 +525,17 @@
 			unitCharacteristics.forEach(k => {
 				const c = document.createElement("div");
 				c.className = "header-cell";
-				c.textContent = k;
+				
+				const chk = document.createElement("input")
+				chk.type = "checkbox";
+				chk.checked = true;
+				chk.addEventListener("change", e => {
+					if (e.target.checked) testSettings.excludedColumns.delete(k);
+					else testSettings.excludedColumns.add(k);
+				});
+				
+				c.appendChild(chk);
+				c.append(" " + k);
 				unitHeadRow.appendChild(c);
 			});
 
@@ -487,7 +548,18 @@
 
 				const uNameCell = document.createElement("div");
 				uNameCell.className = "cell unit-left";
-				uNameCell.textContent = unit.name;
+				
+				const chk = document.createElement("input");
+				chk.type = "checkbox";
+				chk.checked = true;
+				chk.addEventListener("change", e => {
+					const name = unit.name;
+					if (e.target.checked) testSettings.excludedUnits.delete(name);
+					else testSettings.excludedUnits.add(name);
+				});
+				
+				uNameCell.appendChild(chk);
+				uNameCell.append(" " + unit.name);
 				uRow.appendChild(uNameCell);
 
 				unitCharacteristics.forEach(key => {
@@ -566,7 +638,17 @@
 				allKeys.forEach(k => {
 					const c = document.createElement("div");
 					c.className = "header-cell";
-					c.textContent = k;
+					
+					const chk = document.createElement("input")
+					chk.type = "checkbox";
+					chk.checked = true;
+					chk.addEventListener("change", e => {
+						if (e.target.checked) testSettings.excludedColumns.delete(k);
+						else testSettings.excludedColumns.add(k);
+					});
+				
+					c.appendChild(chk);
+					c.append(" " + k);
 					weaponHeadRow.appendChild(c);
 				});
 				weaponTable.appendChild(weaponHeadRow);
@@ -729,7 +811,16 @@
             document.getElementById("flashcard-section").style.display="block";
 
 			pageState="flashcards";
-            incorrectBucket=[...units];
+            incorrectBucket=[...units]
+				.filter(u => !testSettings.excludedUnits.has(u.name))
+				.map(u => ({
+					...u,
+					weapons: u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)),
+					profiles: Object.fromEntries(
+						Object.entries(u.profiles).filter(([k]) => !testSettings.excludedColumns.has(k))
+					),
+					abilities: testSettings.includeAbilities ? u.abilities : []
+				}));
             shuffleArray(incorrectBucket);
             correctBucket=[];
 			deferredBucket=[];
