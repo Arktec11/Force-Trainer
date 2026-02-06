@@ -52,7 +52,7 @@
 			"Anti-Psychic",
 		];
 		
-		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
+		keywordSuggestions.push(...keywordsWithSuffix);
 
 		let testSettings = {
 			excludedColumns: new Set(),
@@ -1464,9 +1464,9 @@
 				input.removeAttribute("list");        // disable dropdown on empty input
 			  }
 
-			  const matches = keywordSuggestions.filter(
+				const matches = keywordSuggestions.filter(
 				kw => kw.toLowerCase().includes(val.toLowerCase())
-			  );
+				);
 			});
 
 			container.appendChild(input);
@@ -1492,28 +1492,51 @@
 				});
 			}
 
-			// Helper: create tag safely (no duplicates)
+			// Helper: create tag safely (no duplicates + replaces suffix keywords)
 			function addTag(value) {
 				const trimmed = value.trim();
 				if (!trimmed) return;
 
-				const tag = [...tagsDiv.querySelectorAll(".tag")]
-					.find(t => t.textContent.toLowerCase() === trimmed.toLowerCase());
-				
-				if (tag) {
-					tag.classList.remove("hidden");
-					tag.classList.add("revealed");
-					tag.onclick = () => tag.remove();
-				} else {
-					const wrongTag	= document.createElement("span");
-					wrongTag.className = "tag revealed";
-					wrongTag.textContent = trimmed;
-					wrongTag.onclick = () => wrongTag.remove();
-					tagsDiv.appendChild(wrongTag);
+				// If this is a "suffix keyword" (e.g., Sustained Hits X), replace any existing revealed one
+				const base = keywordsWithSuffix.find(kw =>
+					trimmed.toLowerCase().startsWith(kw.toLowerCase())
+				);
+
+				if (base) {
+					// Only touch user-entered tags (revealed) and not locked ones
+					const existingBaseTag = [...tagsDiv.querySelectorAll(".tag.revealed")]
+						.find(t =>
+							!t.dataset.locked &&
+							t.textContent.trim().toLowerCase().startsWith(base.toLowerCase())
+						);
+
+					if (existingBaseTag) {
+						existingBaseTag.remove();
+					}
 				}
-				
+
+				// Exact match already present? Reveal/keep it.
+				const exact = [...tagsDiv.querySelectorAll(".tag")]
+					.find(t => t.textContent.trim().toLowerCase() === trimmed.toLowerCase());
+
+				if (exact) {
+					exact.classList.remove("hidden");
+					exact.classList.add("revealed");
+					if (!exact.dataset.locked) exact.onclick = () => exact.remove();
+					input.value = "";
+					return;
+				}
+
+				// Otherwise create a new (user) tag
+				const wrongTag = document.createElement("span");
+				wrongTag.className = "tag revealed";
+				wrongTag.textContent = trimmed;
+				wrongTag.onclick = () => wrongTag.remove();
+				tagsDiv.appendChild(wrongTag);
+
 				input.value = "";
 			}
+
 
 			// Handle typing and confirmation
 			input.addEventListener("input", () => {
@@ -1523,38 +1546,67 @@
 					kw => kw.toLowerCase() === val.toLowerCase()
 				);
 				
-				if (match) addTag(match);
+				//if (match) addTag(match);
 			});
 
 			// Handle Enter / Tab / selection
 			input.addEventListener("keydown", e => {
 				if (e.key === "Enter" || e.key === "Tab") {
 					const val = input.value.trim();
+					const m = val.match(/^(.*?)(?:\s*)(\d+\+?)\s*$/);
+					const typedPrefix = (m ? (m[1] || "").trim() : val).trim();
+					const typedNum = (m ? (m[2] || "").trim() : "");
+					const candidates = keywordSuggestions.filter(kw =>
+						kw.toLowerCase().includes(typedPrefix.toLowerCase())
+					);
+					console.log(candidates)
+					if (candidates.length !== 1) return;
+					const match = candidates[0];
+					
+					console.log(typedPrefix)
+					console.log(typedNum)
+					console.log(match)
 					
 					if (val.length > 0) {
 						e.preventDefault();						
 						
 						const base = keywordsWithSuffix.find(
-							kw =>  val.toLowerCase().startsWith(kw.toLowerCase())
+							kw =>  kw.toLowerCase() === match.toLowerCase()
 						);
 						
 						if (base) {
-							if (val.toLowerCase() === base.toLowerCase()) {
+							if (!typedNum) return;
+							
+							if (base.toLowerCase().startsWith("anti-")) {
+								const num = typedNum.endsWith("+") ? typedNum : (typedNum + "+");
+								addTag(`${base} ${num}`);
+							} else {
+								const num = typedNum.replace(/\+$/, "");
+								addTag(`${base} ${num}`);
+							}
+							/*if (val.toLowerCase() === base.toLowerCase()) {
 								return;
 							} else {
-								let match = base + val.replace(base.toLowerCase(),"");
+								const suffix = val.trim().slice(base.length);
+								let match = base + suffix;
 								addTag(match);
-							}
+								return
+							}*/
+							input.value = "";
+							return;
 						}
 						
-						const match = keywordSuggestions.find(
+						addTag(match);
+						input.value = "";
+						
+						/*const match = keywordSuggestions.find(
 						  kw => kw.toLowerCase() === val.toLowerCase()
 						) || keywordSuggestions.find(kw =>
 						  kw.toLowerCase().startsWith(val.toLowerCase())
 						);
 						
 						if (match) addTag(match);
-						else input.value = "";
+						else input.value = "";*/
 					} else if (e.key === "Enter") {
 						input.blur();
 						
@@ -1569,11 +1621,11 @@
 			});
 
 			// When a suggestion is chosen from dropdown
-			input.addEventListener("change", () => {
+			/*input.addEventListener("change", () => {
 				const val = input.value.trim();
 				if (!val) return;
 				addTag(val);
-			});
+			});*/
 			
 			refreshSuggestions();
 		}
