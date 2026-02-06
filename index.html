@@ -139,6 +139,24 @@
                 [arr[i],arr[j]]=[arr[j],arr[i]];
             }
         }
+		
+		function normKwArray(arr) { //--------------------------------------------------
+		  return (Array.isArray(arr) ? arr : [])
+			.map(s => String(s).trim().toLowerCase())
+			.filter(Boolean)
+			.sort((a,b) => a.localeCompare(b));
+		}
+
+		function keywordArraysEqual(a, b) {//--------------------------------------------------
+		  const aa = normKwArray(a);
+		  const bb = normKwArray(b);
+		  if (aa.length !== bb.length) return false;
+		  for (let i = 0; i < aa.length; i++) {
+			if (aa[i] !== bb[i]) return false;
+		  }
+		  return true;
+		}
+
 
 		function formatAbilities(text) { //--------------------------------------------------
 			return text
@@ -1143,8 +1161,7 @@
 					
 					if (k === "Keywords") {
 						cCell.className = "keyword-cell";
-					
-						const correctTags = weapon.characteristics["Keywords"] || [];
+						
 						const container = document.createElement("div");
 						container.className = "keyword-container";
 						container.setAttribute("data-weapon-index", wIx);
@@ -1152,7 +1169,30 @@
 						
 						const tagsDiv = document.createElement("div");
 						tagsDiv.className = "tags";
-							
+						
+						const correctTags = weapon.characteristics["Keywords"] || [];
+						const known = knownWeapons[weapon.name] ? knownWeapons[weapon.name]["Keywords"] : null;
+
+						const canAutoKw = knownWeapons[weapon.name] && keywordArraysEqual(correctTags, known);
+
+						correctTags.forEach(kw => {
+						  const tag = document.createElement("span");
+						  tag.textContent = kw;
+
+						  if (canAutoKw) {
+							tag.className = "tag revealed";
+							tag.dataset.locked = "true";
+							tag.onclick = null; // don’t let user delete autofilled
+						  } else {
+							tag.className = "tag hidden";
+						  }
+
+						  tagsDiv.appendChild(tag);
+						});
+
+						container.appendChild(tagsDiv);
+						
+						/*const correctTags = weapon.characteristics["Keywords"] || [];
 						correctTags.forEach(kw => {
 							const tag = document.createElement("span");
 							tag.className = "tag hidden";
@@ -1160,8 +1200,14 @@
 							tagsDiv.appendChild(tag);
 						});
 						
-						container.appendChild(tagsDiv);
-						setupKeywordInput(container);
+						container.appendChild(tagsDiv);*/
+						
+						
+						const kwInput = setupKeywordInput(container);
+						if (canAutoKw && kwInput) {
+							kwInput.disabled = true;
+							kwInput.classList.add("grayed");
+						}
 						
 						cCell.appendChild(container);
 					} else {
@@ -1628,7 +1674,9 @@
 			});*/
 			
 			refreshSuggestions();
+			return input;
 		}
+		
 		
 		function getUserKeywords(container) { //--------------------------------------------------
 			let userTags = Array.from(container.querySelectorAll(".tag.revealed"))
