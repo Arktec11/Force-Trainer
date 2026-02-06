@@ -35,6 +35,7 @@
 			"Indirect Fire",
 			"Extra Attacks",
 			"Conversion",
+			"One Shot",
 		];
 		
 		const keywordsWithSuffix = [
@@ -474,16 +475,6 @@
 			unitCharacteristics.forEach(k => {
 				const c = document.createElement("div");
 				c.className = "header-cell";
-				
-				const chk = document.createElement("input")
-				chk.type = "checkbox";
-				chk.checked = true;
-				chk.addEventListener("change", e => {
-					if (e.target.checked) testSettings.excludedColumns.delete(k);
-					else testSettings.excludedColumns.add(k);
-				});
-				
-				c.appendChild(chk);
 				c.append(" " + k);
 				unitHeadRow.appendChild(c);
 			});
@@ -498,16 +489,6 @@
 				const uNameCell = document.createElement("div");
 				uNameCell.className = "cell unit-left";
 				
-				const chk = document.createElement("input");
-				chk.type = "checkbox";
-				chk.checked = true;
-				chk.addEventListener("change", e => {
-					const name = unit.name;
-					if (e.target.checked) testSettings.excludedUnits.delete(name);
-					else testSettings.excludedUnits.add(name);
-				});
-				
-				uNameCell.appendChild(chk);
 				uNameCell.append(" " + unit.name);
 				uRow.appendChild(uNameCell);
 
@@ -590,15 +571,6 @@
 					const c = document.createElement("div");
 					c.className = "header-cell";
 					
-					const chk = document.createElement("input")
-					chk.type = "checkbox";
-					chk.checked = true;
-					chk.addEventListener("change", e => {
-						if (e.target.checked) testSettings.excludedColumns.delete(k);
-						else testSettings.excludedColumns.add(k);
-					});
-				
-					c.appendChild(chk);
 					c.append(" " + k);
 					weaponHeadRow.appendChild(c);
 				});
