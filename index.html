@@ -116,7 +116,7 @@
             if(k==="Range" && v.toLowerCase()==="melee"){
                 return "Melee";
             }
-            const arr=["Range","AP","BS/WS","M","SV","LD","user"];
+            const arr=["Range","AP","BS/WS","M","SV","INV","LD","user"];
             if(arr.includes(k)){
                 return v.replace(/[^0-9]/g,"");
             }
@@ -156,7 +156,27 @@
 		  }
 		  return true;
 		}
+		
+		function extractInvFromSelection(sel) {
+		  if (!sel || !Array.isArray(sel.profiles)) return "";
 
+		  const invProf = sel.profiles.find(p =>
+			p && p.typeName === "Abilities" && /invulnerable save/i.test(p.name || "")
+		  );
+		  if (!invProf) return "";
+
+		  // search both the profile name and its Description text
+		  const nameText = String(invProf.name || "");
+		  const descText = Array.isArray(invProf.characteristics)
+			? invProf.characteristics.map(c => c && c.$text ? String(c.$text) : "").join(" ")
+			: "";
+
+		  const blob = (nameText + " " + descText);
+
+		  // works for "4+", "2+*", "5+"
+		  const m = blob.match(/(\d)\s*\+/);
+		  return m ? m[1] : "";
+		}
 
 		function formatAbilities(text) { //--------------------------------------------------
 			return text
@@ -211,6 +231,8 @@
 		function gatherUnitProfiles(sel) { //--------------------------------------------------
 			let unitProfiles = [];
 
+			const invVal = extractInvFromSelection(sel);
+
 			if (sel.profiles && Array.isArray(sel.profiles)) {
 				unitProfiles.push(...sel.profiles
 					.filter(p => p.typeName === "Unit" || p.typeName === "Model")  // Ensure unit/model profiles are extracted
@@ -223,6 +245,10 @@
 								let val = c.$text;
 								characteristics[nm] = val;
 							});
+						}
+
+						if (invVal) {
+							characteristics["INV"] = invVal;
 						}
 
 						if(characteristics["M"]){
@@ -315,12 +341,14 @@
 			if (!sel.profiles) return unitAbilities;
 			
 			sel.profiles
-				.filter(p=>(p.typeName==="Abilities" && p.name!=="Leader" && p.name!=="Attached Unit"))
-				.forEach(parent=>{
+				.filter(p=>
+					p.typeName==="Abilities" &&
+					p.name!=="Leader" &&
+					p.name!=="Attached Unit" &&
+					!/invulnerable save/i.test(p.name || "")
+				).forEach(parent=>{
 					let aName=parent.name
-					if (/invulnerable save/i.test(aName)) {
-						aName="Invulnerable Save"
-					} else if (/damaged/i.test(aName)) {
+					if (/damaged/i.test(aName)) {
 						aName="Damaged"
 					}
 					
@@ -366,7 +394,7 @@
 				const nm = sel.name || "Unnamed Unit";
 				const unitWeapons = gatherUnitWeapons(sel); // EXTRACT WEAPON PROFILES
 				const unitProfiles = gatherUnitProfiles(sel); // Extract unit profiles
-				const unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
+				let unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
 
 				arr.push({
 					name: nm,
@@ -485,7 +513,7 @@
 			});
 
 			let unitCharacteristics = Array.from(unitCharacteristicsSet);
-			const desiredOrder = ["M", "SV", "T", "W", "LD", "OC"];
+			const desiredOrder = ["M", "SV", "INV", "T", "W", "LD", "OC"];
 
 			unitCharacteristics.sort((a, b) => {
 				const ai = desiredOrder.indexOf(a);
@@ -494,7 +522,7 @@
 			});
 
 			function colWidth(k) {
-				if (["M", "SV", "T", "W", "LD", "OC","Weapons","Abilities"].includes(k)) {
+				if (["M", "SV", "INV", "T", "W", "LD", "OC","Weapons","Abilities"].includes(k)) {
 					return "minmax(30px, 80px)";
 				}
 				return "minmax(60px, 1fr)";
@@ -907,9 +935,10 @@
 			profiles.forEach(p => {
 			  Object.keys(p.characteristics || {}).forEach(k => unitCharSet.add(k));
 			});
+			unitCharSet.add("INV");
 
 			let unitCharKeys = Array.from(unitCharSet);
-			const desiredProfileOrder = ["M", "SV", "T", "W", "LD", "OC"];
+			const desiredProfileOrder = ["M", "SV", "INV", "T", "W", "LD", "OC"];
 
 			unitCharKeys.sort((a, b) => {
 			  const ai = desiredProfileOrder.indexOf(a);
