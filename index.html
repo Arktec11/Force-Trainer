@@ -482,10 +482,6 @@
 						Object.keys(p.characteristics).forEach(k => unitCharacteristicsSet.add(k));
 					}
 				});
-				
-				//if (u.profiles && typeof u.profiles === "object") {
-				//	Object.keys(u.profiles).forEach(k => unitCharacteristicsSet.add(k));
-				//}
 			});
 
 			let unitCharacteristics = Array.from(unitCharacteristicsSet);
@@ -570,35 +566,6 @@
 					  cCell.appendChild(inp);
 					  uRow.appendChild(cCell);
 					});
-			
-					/*
-					const uRow = document.createElement("div");
-					uRow.className = "unit-row";
-					uRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
-
-					const uNameCell = document.createElement("div");
-					uNameCell.className = "cell unit-left";
-					
-					uNameCell.append(" " + unit.name);
-					uRow.appendChild(uNameCell);
-
-					unitCharacteristics.forEach(key => {
-						const cCell = document.createElement("div");
-						cCell.className = "cell";
-
-						let val = (unit.profiles && unit.profiles[key]) ? unit.profiles[key] : "";
-
-						const inp = document.createElement("input");
-						inp.type = "text";
-						inp.value = val;
-						inp.setAttribute("data-unit-index", String(uIndex));
-						inp.setAttribute("data-key", key);
-						inp.onchange = updateUnitCharacteristic;
-
-						cCell.appendChild(inp);
-						uRow.appendChild(cCell);
-					});
-					*/
 
 					unitTable.appendChild(uRow);
 				});
@@ -797,18 +764,6 @@
 			  }
 
 			units[uIndex].modelProfiles[pIndex].characteristics[key] = sanitizeValue(key, val);
-			
-			/*
-			const uIndex = ev.target.getAttribute("data-unit-index");
-			const key = ev.target.getAttribute("data-key");
-			const val = ev.target.value;
-			
-			if (!units[uIndex].profiles) {
-				units[uIndex].profiles = {}; // Ensure profiles exist before updating
-			}
-
-			units[uIndex].profiles[key] = sanitizeValue(key, val);
-			*/
 		}
 
         function updateWeaponCharacteristic(ev){ //--------------------------------------------------
@@ -856,18 +811,6 @@
 				})),
 				abilities: u.abilities
 			}));
-			
-				/*
-				.filter(u => !testSettings.excludedUnits.has(u.name))
-				.map(u => ({
-					...u,
-					weapons: u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)),
-					profiles: Object.fromEntries(
-						Object.entries(u.profiles).filter(([k]) => !testSettings.excludedColumns.has(k))
-					),
-					abilities: u.abilities
-				}));
-				*/
 				
             shuffleArray(incorrectBucket);
             correctBucket=[];
@@ -1190,18 +1133,7 @@
 						  tagsDiv.appendChild(tag);
 						});
 
-						container.appendChild(tagsDiv);
-						
-						/*const correctTags = weapon.characteristics["Keywords"] || [];
-						correctTags.forEach(kw => {
-							const tag = document.createElement("span");
-							tag.className = "tag hidden";
-							tag.textContent = kw;
-							tagsDiv.appendChild(tag);
-						});
-						
-						container.appendChild(tagsDiv);*/
-						
+						container.appendChild(tagsDiv);						
 						
 						const kwInput = setupKeywordInput(container);
 						if (canAutoKw && kwInput) {
@@ -1605,16 +1537,12 @@
 					const candidates = keywordSuggestions.filter(kw =>
 						kw.toLowerCase().includes(typedPrefix.toLowerCase())
 					);
-					console.log(candidates)
+					
 					if (candidates.length !== 1) return;
 					const match = candidates[0];
 					
-					console.log(typedPrefix)
-					console.log(typedNum)
-					console.log(match)
-					
 					if (val.length > 0) {
-						e.preventDefault();						
+						e.preventDefault();
 						
 						const base = keywordsWithSuffix.find(
 							kw =>  kw.toLowerCase() === match.toLowerCase()
@@ -1630,29 +1558,12 @@
 								const num = typedNum.replace(/\+$/, "");
 								addTag(`${base} ${num}`);
 							}
-							/*if (val.toLowerCase() === base.toLowerCase()) {
-								return;
-							} else {
-								const suffix = val.trim().slice(base.length);
-								let match = base + suffix;
-								addTag(match);
-								return
-							}*/
 							input.value = "";
 							return;
 						}
 						
 						addTag(match);
 						input.value = "";
-						
-						/*const match = keywordSuggestions.find(
-						  kw => kw.toLowerCase() === val.toLowerCase()
-						) || keywordSuggestions.find(kw =>
-						  kw.toLowerCase().startsWith(val.toLowerCase())
-						);
-						
-						if (match) addTag(match);
-						else input.value = "";*/
 					} else if (e.key === "Enter") {
 						input.blur();
 						
