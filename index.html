@@ -35,6 +35,7 @@
 			"Indirect Fire",
 			"Extra Attacks",
 			"Conversion",
+			"One Shot",
 		];
 		
 		const keywordsWithSuffix = [
@@ -51,7 +52,7 @@
 			"Anti-Psychic",
 		];
 		
-		keywordSuggestions.push(...keywordsWithSuffix.map(x => x + " [X]"));
+		keywordSuggestions.push(...keywordsWithSuffix);
 
 		let testSettings = {
 			excludedColumns: new Set(),
@@ -115,7 +116,7 @@
             if(k==="Range" && v.toLowerCase()==="melee"){
                 return "Melee";
             }
-            const arr=["Range","AP","BS/WS","M","SV","LD","user"];
+            const arr=["Range","AP","BS/WS","M","SV","INV","LD","user"];
             if(arr.includes(k)){
                 return v.replace(/[^0-9]/g,"");
             }
@@ -138,6 +139,44 @@
                 [arr[i],arr[j]]=[arr[j],arr[i]];
             }
         }
+		
+		function normKwArray(arr) { //--------------------------------------------------
+		  return (Array.isArray(arr) ? arr : [])
+			.map(s => String(s).trim().toLowerCase())
+			.filter(Boolean)
+			.sort((a,b) => a.localeCompare(b));
+		}
+
+		function keywordArraysEqual(a, b) {//--------------------------------------------------
+		  const aa = normKwArray(a);
+		  const bb = normKwArray(b);
+		  if (aa.length !== bb.length) return false;
+		  for (let i = 0; i < aa.length; i++) {
+			if (aa[i] !== bb[i]) return false;
+		  }
+		  return true;
+		}
+		
+		function extractInvFromSelection(sel) {
+		  if (!sel || !Array.isArray(sel.profiles)) return "";
+
+		  const invProf = sel.profiles.find(p =>
+			p && p.typeName === "Abilities" && /invulnerable save/i.test(p.name || "")
+		  );
+		  if (!invProf) return "";
+
+		  // search both the profile name and its Description text
+		  const nameText = String(invProf.name || "");
+		  const descText = Array.isArray(invProf.characteristics)
+			? invProf.characteristics.map(c => c && c.$text ? String(c.$text) : "").join(" ")
+			: "";
+
+		  const blob = (nameText + " " + descText);
+
+		  // works for "4+", "2+*", "5+"
+		  const m = blob.match(/(\d)\s*\+/);
+		  return m ? m[1] : "";
+		}
 
 		function formatAbilities(text) { //--------------------------------------------------
 			return text
@@ -192,6 +231,8 @@
 		function gatherUnitProfiles(sel) { //--------------------------------------------------
 			let unitProfiles = [];
 
+			const invVal = extractInvFromSelection(sel);
+
 			if (sel.profiles && Array.isArray(sel.profiles)) {
 				unitProfiles.push(...sel.profiles
 					.filter(p => p.typeName === "Unit" || p.typeName === "Model")  // Ensure unit/model profiles are extracted
@@ -204,6 +245,10 @@
 								let val = c.$text;
 								characteristics[nm] = val;
 							});
+						}
+
+						if (invVal) {
+							characteristics["INV"] = invVal;
 						}
 
 						if(characteristics["M"]){
@@ -296,12 +341,14 @@
 			if (!sel.profiles) return unitAbilities;
 			
 			sel.profiles
-				.filter(p=>(p.typeName==="Abilities" && p.name!=="Leader" && p.name!=="Attached Unit"))
-				.forEach(parent=>{
+				.filter(p=>
+					p.typeName==="Abilities" &&
+					p.name!=="Leader" &&
+					p.name!=="Attached Unit" &&
+					!/invulnerable save/i.test(p.name || "")
+				).forEach(parent=>{
 					let aName=parent.name
-					if (/invulnerable save/i.test(aName)) {
-						aName="Invulnerable Save"
-					} else if (/damaged/i.test(aName)) {
+					if (/damaged/i.test(aName)) {
 						aName="Damaged"
 					}
 					
@@ -347,12 +394,12 @@
 				const nm = sel.name || "Unnamed Unit";
 				const unitWeapons = gatherUnitWeapons(sel); // EXTRACT WEAPON PROFILES
 				const unitProfiles = gatherUnitProfiles(sel); // Extract unit profiles
-				const unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
+				let unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
 
 				arr.push({
 					name: nm,
 					weapons: unitWeapons,
-					profiles: unitProfiles.length > 0 && unitProfiles[0].characteristics ? unitProfiles[0].characteristics : {},
+					modelProfiles: unitProfiles,
 					abilities: unitAbilities
 				});
 			}
@@ -380,12 +427,35 @@
 		function unifyUnits() { //--------------------------------------------------
 			
 			let nameMap = {};
+			
 			units.forEach(u => {
 				if (!nameMap[u.name]) {
-					nameMap[u.name] = { name: u.name, weapons: [], profiles: u.profiles || {}, abilities: []}; // Preserve profiles!
+					nameMap[u.name] = {
+						name: u.name,
+						weapons: [],
+						modelProfiles: [],
+						abilities: []
+					};
 				}
-				nameMap[u.name].weapons.push(...u.weapons);
-				nameMap[u.name].abilities.push(...u.abilities);
+				
+				nameMap[u.name].weapons.push(...(u.weapons || []));
+				nameMap[u.name].abilities.push(...(u.abilities || []));
+			
+				(u.modelProfiles || []).forEach(p => {
+					const existing = nameMap[u.name].modelProfiles.find(x => x.name === p.name)
+					if (!existing) {
+						nameMap[u.name].modelProfiles.push({
+							name: p.name,
+							characteristics: { ...(p.characteristics || {}) }
+						});
+					} else {
+						for (const [k, v] of Object.entries(p.characteristics || {})) {
+							if (existing.characteristics[k] == null || existing.characteristics[k] === "") {
+								existing.characteristics[k] = v;
+							}
+						}
+					}
+				});
 			});
 
 			for (let nm in nameMap) {
@@ -435,13 +505,15 @@
 
 			let unitCharacteristicsSet = new Set();
 			units.forEach(u => {
-				if (u.profiles && typeof u.profiles === "object") {
-					Object.keys(u.profiles).forEach(k => unitCharacteristicsSet.add(k));
-				}
+				(u.modelProfiles || []).forEach(p => {
+					if (p.characteristics && typeof p.characteristics === "object") {
+						Object.keys(p.characteristics).forEach(k => unitCharacteristicsSet.add(k));
+					}
+				});
 			});
 
 			let unitCharacteristics = Array.from(unitCharacteristicsSet);
-			const desiredOrder = ["M", "SV", "T", "W", "LD", "OC"];
+			const desiredOrder = ["M", "SV", "INV", "T", "W", "LD", "OC"];
 
 			unitCharacteristics.sort((a, b) => {
 				const ai = desiredOrder.indexOf(a);
@@ -450,7 +522,7 @@
 			});
 
 			function colWidth(k) {
-				if (["M", "SV", "T", "W", "LD", "OC","Weapons","Abilities"].includes(k)) {
+				if (["M", "SV", "INV", "T", "W", "LD", "OC","Weapons","Abilities"].includes(k)) {
 					return "minmax(30px, 80px)";
 				}
 				return "minmax(60px, 1fr)";
@@ -474,16 +546,6 @@
 			unitCharacteristics.forEach(k => {
 				const c = document.createElement("div");
 				c.className = "header-cell";
-				
-				const chk = document.createElement("input")
-				chk.type = "checkbox";
-				chk.checked = true;
-				chk.addEventListener("change", e => {
-					if (e.target.checked) testSettings.excludedColumns.delete(k);
-					else testSettings.excludedColumns.add(k);
-				});
-				
-				c.appendChild(chk);
 				c.append(" " + k);
 				unitHeadRow.appendChild(c);
 			});
@@ -491,44 +553,50 @@
 			unitTable.appendChild(unitHeadRow);
 
 			units.forEach((unit, uIndex) => {
-				const uRow = document.createElement("div");
-				uRow.className = "unit-row";
-				uRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
+				const profiles = (unit.modelProfiles && unit.modelProfiles.length)
+				? unit.modelProfiles
+				: [{ name: "Profile", characteristics: {} }];
 
-				const uNameCell = document.createElement("div");
-				uNameCell.className = "cell unit-left";
-				
-				const chk = document.createElement("input");
-				chk.type = "checkbox";
-				chk.checked = true;
-				chk.addEventListener("change", e => {
-					const name = unit.name;
-					if (e.target.checked) testSettings.excludedUnits.delete(name);
-					else testSettings.excludedUnits.add(name);
+				profiles.forEach((prof, pIndex) => {
+					const uRow = document.createElement("div");
+					uRow.className = "unit-row";
+					uRow.style.gridTemplateColumns = unitColDefs.map(d => d.width).join(" ");
+
+					// Unit cell
+					const uNameCell = document.createElement("div");
+					uNameCell.className = "cell unit-left";
+
+					const profName = prof.name || unit.name;
+					const unitName = unit.name;
+					
+					uNameCell.textContent =
+						profName !== unitName
+							? `${profName} (${unitName})`
+							: profName;
+					
+					uRow.appendChild(uNameCell);
+
+					// Stat cells
+					unitCharacteristics.forEach(key => {
+					  const cCell = document.createElement("div");
+					  cCell.className = "cell";
+
+					  const val = (prof.characteristics && prof.characteristics[key]) ? prof.characteristics[key] : "";
+
+					  const inp = document.createElement("input");
+					  inp.type = "text";
+					  inp.value = val;
+					  inp.setAttribute("data-unit-index", String(uIndex));
+					  inp.setAttribute("data-profile-index", String(pIndex));
+					  inp.setAttribute("data-key", key);
+					  inp.onchange = updateUnitCharacteristic;
+
+					  cCell.appendChild(inp);
+					  uRow.appendChild(cCell);
+					});
+
+					unitTable.appendChild(uRow);
 				});
-				
-				uNameCell.appendChild(chk);
-				uNameCell.append(" " + unit.name);
-				uRow.appendChild(uNameCell);
-
-				unitCharacteristics.forEach(key => {
-					const cCell = document.createElement("div");
-					cCell.className = "cell";
-
-					let val = (unit.profiles && unit.profiles[key]) ? unit.profiles[key] : "";
-
-					const inp = document.createElement("input");
-					inp.type = "text";
-					inp.value = val;
-					inp.setAttribute("data-unit-index", String(uIndex));
-					inp.setAttribute("data-key", key);
-					inp.onchange = updateUnitCharacteristic;
-
-					cCell.appendChild(inp);
-					uRow.appendChild(cCell);
-				});
-
-				unitTable.appendChild(uRow);
 			});
 
 			rev.appendChild(unitTable);
@@ -590,15 +658,6 @@
 					const c = document.createElement("div");
 					c.className = "header-cell";
 					
-					const chk = document.createElement("input")
-					chk.type = "checkbox";
-					chk.checked = true;
-					chk.addEventListener("change", e => {
-						if (e.target.checked) testSettings.excludedColumns.delete(k);
-						else testSettings.excludedColumns.add(k);
-					});
-				
-					c.appendChild(chk);
 					c.append(" " + k);
 					weaponHeadRow.appendChild(c);
 				});
@@ -719,15 +778,20 @@
 		}
 
 		function updateUnitCharacteristic(ev) { //--------------------------------------------------
-			const uIndex = ev.target.getAttribute("data-unit-index");
-			const key = ev.target.getAttribute("data-key");
-			const val = ev.target.value;
-			
-			if (!units[uIndex].profiles) {
-				units[uIndex].profiles = {}; // Ensure profiles exist before updating
-			}
+			const uIndex = Number(ev.target.getAttribute("data-unit-index"));
+			  const pIndex = Number(ev.target.getAttribute("data-profile-index"));
+			  const key = ev.target.getAttribute("data-key");
+			  const val = ev.target.value;
 
-			units[uIndex].profiles[key] = sanitizeValue(key, val);
+			  if (!units[uIndex].modelProfiles) units[uIndex].modelProfiles = [];
+			  if (!units[uIndex].modelProfiles[pIndex]) {
+				units[uIndex].modelProfiles[pIndex] = { name: "Profile", characteristics: {} };
+			  }
+			  if (!units[uIndex].modelProfiles[pIndex].characteristics) {
+				units[uIndex].modelProfiles[pIndex].characteristics = {};
+			  }
+
+			units[uIndex].modelProfiles[pIndex].characteristics[key] = sanitizeValue(key, val);
 		}
 
         function updateWeaponCharacteristic(ev){ //--------------------------------------------------
@@ -765,13 +829,17 @@
             incorrectBucket=[...units]
 				.filter(u => !testSettings.excludedUnits.has(u.name))
 				.map(u => ({
-					...u,
-					weapons: u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)),
-					profiles: Object.fromEntries(
-						Object.entries(u.profiles).filter(([k]) => !testSettings.excludedColumns.has(k))
-					),
-					abilities: u.abilities
-				}));
+				...u,
+				weapons: u.weapons.filter(w => !testSettings.excludedWeapons.has(w.name)),
+				modelProfiles: (u.modelProfiles || []).map(p => ({
+				  ...p,
+				  characteristics: Object.fromEntries(
+					Object.entries(p.characteristics || {}).filter(([k]) => !testSettings.excludedColumns.has(k))
+				  )
+				})),
+				abilities: u.abilities
+			}));
+				
             shuffleArray(incorrectBucket);
             correctBucket=[];
 			deferredBucket=[];
@@ -857,70 +925,85 @@
 
 			
 			// UNIT TABLE ------------------------------------------------------------------------------------------------------------------------------------
-			
-			let unitCharKeys = Object.keys(unit.profiles || {});
-			const desiredProfileOrder = ["M", "SV", "T", "W", "LD", "OC"];
-			
+
+			const profiles = (unit.modelProfiles && unit.modelProfiles.length)
+			  ? unit.modelProfiles
+			  : [{ name: unit.name, characteristics: {} }];
+
+			// collect all stat keys across profiles
+			let unitCharSet = new Set();
+			profiles.forEach(p => {
+			  Object.keys(p.characteristics || {}).forEach(k => unitCharSet.add(k));
+			});
+			unitCharSet.add("INV");
+
+			let unitCharKeys = Array.from(unitCharSet);
+			const desiredProfileOrder = ["M", "SV", "INV", "T", "W", "LD", "OC"];
+
 			unitCharKeys.sort((a, b) => {
-				const ai = desiredProfileOrder.indexOf(a);
-				const bi = desiredProfileOrder.indexOf(b);
-				return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+			  const ai = desiredProfileOrder.indexOf(a);
+			  const bi = desiredProfileOrder.indexOf(b);
+			  return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
 			});
 
-			let gridColumnDefinition = `150px ${unitCharKeys.map(k => 'minmax(50px, 80px)').join(' ')}`;
+			let gridColumnDefinition =
+			  `150px ${unitCharKeys.map(() => 'minmax(50px, 80px)').join(' ')}`;
 
 			const unitTable = document.createElement("div");
 			unitTable.className = "unit-table";
-			
+
+			// header
 			const unitHeadRow = document.createElement("div");
 			unitHeadRow.className = "uheader-row";
 			unitHeadRow.style.gridTemplateColumns = gridColumnDefinition;
-			
+
 			const unitHdr = document.createElement("div");
 			unitHdr.className = "header-cell";
 			unitHdr.textContent = "Unit";
 			unitHeadRow.appendChild(unitHdr);
-			
+
 			unitCharKeys.forEach(k => {
-				const c = document.createElement("div");
-				c.className = "header-cell";
-				c.textContent = k;
-				unitHeadRow.appendChild(c);
+			  const c = document.createElement("div");
+			  c.className = "header-cell";
+			  c.textContent = k;
+			  unitHeadRow.appendChild(c);
 			});
-			
-			unitTable.appendChild(unitHeadRow)
-			
-			const unitRow = document.createElement("div");
-			unitRow.className = "unit-row";
-			unitRow.style.gridTemplateColumns = gridColumnDefinition;
-			
-			const unitNameCell = document.createElement("div");
-			unitNameCell.className = "cell unit-left"
-			unitNameCell.textContent = unit.name;
-			unitRow.appendChild(unitNameCell);
-			
-			unitCharKeys.forEach(k => {
+
+			unitTable.appendChild(unitHeadRow);
+
+			// rows (one per profile)
+			profiles.forEach((prof, pIx) => {
+			  const unitRow = document.createElement("div");
+			  unitRow.className = "unit-row";
+			  unitRow.style.gridTemplateColumns = gridColumnDefinition;
+
+			  const unitNameCell = document.createElement("div");
+			  unitNameCell.className = "cell unit-left";
+
+			  unitNameCell.textContent = prof.name
+
+			  unitRow.appendChild(unitNameCell);
+
+			  unitCharKeys.forEach(k => {
 				const uCell = document.createElement("div");
 				uCell.className = "cell";
-				
-				let cVal = unit.profiles[k] || "";
-				let dis = false;
-				let cls = "";
-				let showVal = answersRevealed ? cVal : "";
-				
+
+				const cVal = prof.characteristics[k] || "";
+
 				const inp = document.createElement("input");
 				inp.type = "text";
-				inp.value = showVal;
-				inp.disabled = dis;
-				inp.setAttribute("data-Unit-index", String(currentIndex));
+				inp.value = answersRevealed ? cVal : "";
 				inp.setAttribute("data-correct", cVal);
 				inp.setAttribute("data-key", k);
-				
+				inp.setAttribute("data-profile-index", String(pIx));
+
 				uCell.appendChild(inp);
 				unitRow.appendChild(uCell);
+			  });
+
+			  unitTable.appendChild(unitRow);
 			});
-			
-			unitTable.appendChild(unitRow);
+
 
 			
 			//WEAPON TABLE ------------------------------------------------------------------------------------------------------------------------------------
@@ -1050,8 +1133,7 @@
 					
 					if (k === "Keywords") {
 						cCell.className = "keyword-cell";
-					
-						const correctTags = weapon.characteristics["Keywords"] || [];
+						
 						const container = document.createElement("div");
 						container.className = "keyword-container";
 						container.setAttribute("data-weapon-index", wIx);
@@ -1059,16 +1141,34 @@
 						
 						const tagsDiv = document.createElement("div");
 						tagsDiv.className = "tags";
-							
-						correctTags.forEach(kw => {
-							const tag = document.createElement("span");
-							tag.className = "tag hidden";
-							tag.textContent = kw;
-							tagsDiv.appendChild(tag);
-						});
 						
-						container.appendChild(tagsDiv);
-						setupKeywordInput(container);
+						const correctTags = weapon.characteristics["Keywords"] || [];
+						const known = knownWeapons[weapon.name] ? knownWeapons[weapon.name]["Keywords"] : null;
+
+						const canAutoKw = knownWeapons[weapon.name] && keywordArraysEqual(correctTags, known);
+
+						correctTags.forEach(kw => {
+						  const tag = document.createElement("span");
+						  tag.textContent = kw;
+
+						  if (canAutoKw) {
+							tag.className = "tag revealed";
+							tag.dataset.locked = "true";
+							tag.onclick = null; // don’t let user delete autofilled
+						  } else {
+							tag.className = "tag hidden";
+						  }
+
+						  tagsDiv.appendChild(tag);
+						});
+
+						container.appendChild(tagsDiv);						
+						
+						const kwInput = setupKeywordInput(container);
+						if (canAutoKw && kwInput) {
+							kwInput.disabled = true;
+							kwInput.classList.add("grayed");
+						}
 						
 						cCell.appendChild(container);
 					} else {
@@ -1224,19 +1324,20 @@
 				}
 				
 				const correctVal=(inp.getAttribute("data-correct")||"").trim().toLowerCase();
-				const userVal=sanitizeValue(key,inp.value);
+				const userVal = sanitizeValue(key, inp.value);
 
-                if(key==="Range"&&correctVal==="melee"){
-                    return;
-                }
-				
-				if(correctVal.toLowerCase() !== userVal.toLowerCase()){
-					inp.style.border="3px solid red";
-					allCorrect=false;
-					if(!firstWrong)firstWrong=inp;
-				}else{
-					inp.style.border="3px solid green";
-					inp.disabled="true"
+				// skip Range on melee rows
+				if (key === "Range" && correctVal.toLowerCase() === "melee") {
+				  return;
+				}
+
+				if (correctVal.toLowerCase() !== String(userVal).trim().toLowerCase()) {
+				  inp.style.border = "3px solid red";
+				  allCorrect = false;
+				  if (!firstWrong) firstWrong = inp;
+				} else {
+				  inp.style.border = "3px solid green";
+				  inp.disabled = true;
 				}
             });
 
@@ -1341,7 +1442,7 @@
 			}
 
 			displayFlashcard();
-		} 
+		}
 
 
 //	KEYWORD TAGS -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1370,9 +1471,9 @@
 				input.removeAttribute("list");        // disable dropdown on empty input
 			  }
 
-			  const matches = keywordSuggestions.filter(
+				const matches = keywordSuggestions.filter(
 				kw => kw.toLowerCase().includes(val.toLowerCase())
-			  );
+				);
 			});
 
 			container.appendChild(input);
@@ -1398,28 +1499,51 @@
 				});
 			}
 
-			// Helper: create tag safely (no duplicates)
+			// Helper: create tag safely (no duplicates + replaces suffix keywords)
 			function addTag(value) {
 				const trimmed = value.trim();
 				if (!trimmed) return;
 
-				const tag = [...tagsDiv.querySelectorAll(".tag")]
-					.find(t => t.textContent.toLowerCase() === trimmed.toLowerCase());
-				
-				if (tag) {
-					tag.classList.remove("hidden");
-					tag.classList.add("revealed");
-					tag.onclick = () => tag.remove();
-				} else {
-					const wrongTag	= document.createElement("span");
-					wrongTag.className = "tag revealed";
-					wrongTag.textContent = trimmed;
-					wrongTag.onclick = () => wrongTag.remove();
-					tagsDiv.appendChild(wrongTag);
+				// If this is a "suffix keyword" (e.g., Sustained Hits X), replace any existing revealed one
+				const base = keywordsWithSuffix.find(kw =>
+					trimmed.toLowerCase().startsWith(kw.toLowerCase())
+				);
+
+				if (base) {
+					// Only touch user-entered tags (revealed) and not locked ones
+					const existingBaseTag = [...tagsDiv.querySelectorAll(".tag.revealed")]
+						.find(t =>
+							!t.dataset.locked &&
+							t.textContent.trim().toLowerCase().startsWith(base.toLowerCase())
+						);
+
+					if (existingBaseTag) {
+						existingBaseTag.remove();
+					}
 				}
-				
+
+				// Exact match already present? Reveal/keep it.
+				const exact = [...tagsDiv.querySelectorAll(".tag")]
+					.find(t => t.textContent.trim().toLowerCase() === trimmed.toLowerCase());
+
+				if (exact) {
+					exact.classList.remove("hidden");
+					exact.classList.add("revealed");
+					if (!exact.dataset.locked) exact.onclick = () => exact.remove();
+					input.value = "";
+					return;
+				}
+
+				// Otherwise create a new (user) tag
+				const wrongTag = document.createElement("span");
+				wrongTag.className = "tag revealed";
+				wrongTag.textContent = trimmed;
+				wrongTag.onclick = () => wrongTag.remove();
+				tagsDiv.appendChild(wrongTag);
+
 				input.value = "";
 			}
+
 
 			// Handle typing and confirmation
 			input.addEventListener("input", () => {
@@ -1429,38 +1553,46 @@
 					kw => kw.toLowerCase() === val.toLowerCase()
 				);
 				
-				if (match) addTag(match);
+				//if (match) addTag(match);
 			});
 
 			// Handle Enter / Tab / selection
 			input.addEventListener("keydown", e => {
 				if (e.key === "Enter" || e.key === "Tab") {
 					const val = input.value.trim();
+					const m = val.match(/^(.*?)(?:\s*)(\d+\+?)\s*$/);
+					const typedPrefix = (m ? (m[1] || "").trim() : val).trim();
+					const typedNum = (m ? (m[2] || "").trim() : "");
+					const candidates = keywordSuggestions.filter(kw =>
+						kw.toLowerCase().includes(typedPrefix.toLowerCase())
+					);
+					
+					if (candidates.length !== 1) return;
+					const match = candidates[0];
 					
 					if (val.length > 0) {
-						e.preventDefault();						
+						e.preventDefault();
 						
 						const base = keywordsWithSuffix.find(
-							kw =>  val.toLowerCase().startsWith(kw.toLowerCase())
+							kw =>  kw.toLowerCase() === match.toLowerCase()
 						);
 						
 						if (base) {
-							if (val.toLowerCase() === base.toLowerCase()) {
-								return;
+							if (!typedNum) return;
+							
+							if (base.toLowerCase().startsWith("anti-")) {
+								const num = typedNum.endsWith("+") ? typedNum : (typedNum + "+");
+								addTag(`${base} ${num}`);
 							} else {
-								let match = base + val.replace(base.toLowerCase(),"");
-								addTag(match);
+								const num = typedNum.replace(/\+$/, "");
+								addTag(`${base} ${num}`);
 							}
+							input.value = "";
+							return;
 						}
 						
-						const match = keywordSuggestions.find(
-						  kw => kw.toLowerCase() === val.toLowerCase()
-						) || keywordSuggestions.find(kw =>
-						  kw.toLowerCase().startsWith(val.toLowerCase())
-						);
-						
-						if (match) addTag(match);
-						else input.value = "";
+						addTag(match);
+						input.value = "";
 					} else if (e.key === "Enter") {
 						input.blur();
 						
@@ -1475,14 +1607,16 @@
 			});
 
 			// When a suggestion is chosen from dropdown
-			input.addEventListener("change", () => {
+			/*input.addEventListener("change", () => {
 				const val = input.value.trim();
 				if (!val) return;
 				addTag(val);
-			});
+			});*/
 			
 			refreshSuggestions();
+			return input;
 		}
+		
 		
 		function getUserKeywords(container) { //--------------------------------------------------
 			let userTags = Array.from(container.querySelectorAll(".tag.revealed"))
