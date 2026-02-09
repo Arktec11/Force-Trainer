@@ -378,6 +378,38 @@
 			return unitAbilities;
 		}
 
+		function gatherUnitEnhancements(sel) { //--------------------------------------------------
+			let enh = [];
+
+			// In your JSON, enhancements are selections with group "Enhancements::..."
+			const isEnhancement =
+				sel &&
+				typeof sel.group === "string" &&
+				sel.group.toLowerCase().startsWith("enhancements::");
+
+			if (isEnhancement) {
+				const descParts = (sel.profiles || [])
+					.filter(p => p && (p.typeName === "Abilities" || p.typeName === "Rules"))
+					.flatMap(p => (p.characteristics || []).map(c => formatAbilities(c.$text || "")))
+					.filter(s => s && s.trim().length > 0);
+
+				enh.push({
+					name: `${sel.name || "Unnamed Enhancement"} (Enhancement)`,
+					description: descParts.join("\n"),
+					subAbilities: []
+				});
+			}
+
+			// recurse
+			if (Array.isArray(sel?.selections)) {
+				sel.selections.forEach(s => enh.push(...gatherUnitEnhancements(s)));
+			}
+
+			return enh;
+		}
+
+
+
         function parseForce(force){ //--------------------------------------------------
             let result=[];
             if(force.selections){
@@ -394,7 +426,10 @@
 				const nm = sel.name || "Unnamed Unit";
 				const unitWeapons = gatherUnitWeapons(sel); // EXTRACT WEAPON PROFILES
 				const unitProfiles = gatherUnitProfiles(sel); // Extract unit profiles
-				let unitAbilities = gatherUnitAbilities(sel); // EXTRACT ABILITIES
+				let unitAbilities = [
+					...gatherUnitAbilities(sel),
+					...gatherUnitEnhancements(sel)
+				];
 
 				arr.push({
 					name: nm,
@@ -1651,6 +1686,8 @@
 		<div id="flashcard-section" style="display:none;">
 			<div id="flashcard"></div>
 		</div>
+		
+		<script data-name="BMC-Widget" data-cfasync="false" src="https://cdnjs.buymeacoffee.com/1.0.0/widget.prod.min.js" data-id="Arktec" data-description="Support me on Buy me a coffee!" data-message="" data-color="#5F7FFF" data-position="Right" data-x_margin="18" data-y_margin="18"></script>
 	</div>
 </body>
 </html>
