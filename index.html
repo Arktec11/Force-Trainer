@@ -157,6 +157,23 @@
 		  return true;
 		}
 		
+
+// Known-keyword helper: ignore unknown imported keywords for correctness,
+// but still reveal them when answers are shown.
+const _kwSuggestionsLower = () => keywordSuggestions.map(k => String(k).toLowerCase());
+const _kwSuffixLower = () => keywordsWithSuffix.map(k => String(k).toLowerCase());
+
+function isKnownKeywordTag(tag) { //--------------------------------------------------
+	const t = String(tag || "").trim().toLowerCase();
+	if (!t) return false;
+
+	// Exact keyword (e.g. "psychic", "assault")
+	if (_kwSuggestionsLower().includes(t)) return true;
+
+	// Suffix keyword with a value (e.g. "melta 2", "anti-psychic 4+")
+	return _kwSuffixLower().some(base => t.startsWith(base + " "));
+}
+
 		function extractInvFromSelection(sel) {
 		  if (!sel || !Array.isArray(sel.profiles)) return "";
 
@@ -1326,17 +1343,26 @@
 						.map(t => t.trim().toLowerCase());
 					const userTags = getUserKeywords(container)
 						.map(t => t.trim().toLowerCase());
-					const correctSet = new Set(correctTags);
+					// Only "known" keywords count toward correctness (unknown imported keywords are reveal-only)
+					const correctKnown = correctTags.filter(isKnownKeywordTag);
+					const userKnown = userTags.filter(isKnownKeywordTag);
 
-					const bothEmpty = correctTags.length === 0 && userTags.length === 0;
+					const correctKnownSet = new Set(correctKnown);
+					const bothEmptyKnown = correctKnown.length === 0 && userKnown.length === 0;
 
 					userTags.forEach(userTag => {
 						const tagEl = Array.from(container.querySelectorAll(".tag"))
 							.find(t => t.textContent.trim().toLowerCase() === userTag);
 							
 						if (!tagEl) return;
+
+						// Unknown keyword: don't count it as wrong/right, just reveal later
+						if (!isKnownKeywordTag(userTag)) {
+							tagEl.classList.add("unknown");
+							return;
+						}
 						
-						if (correctSet.has(userTag)) {
+						if (correctKnownSet.has(userTag)) {
 							tagEl.classList.add("correct");
 							tagEl.onclick = null;
 							tagEl.dataset.locked = "true";
@@ -1344,14 +1370,12 @@
 							tagEl.classList.add("incorrect");
 						}
 					});
-					
+
 					const kwCorrect =
-						bothEmpty ||
-						(userTags.length === correctTags.length &&
-						userTags.every(t => correctSet.has(t)));
-
-
-					inp.style.border = kwCorrect ? "3px solid green" : "3px solid red";
+						bothEmptyKnown ||
+						(userKnown.length === correctKnown.length &&
+						userKnown.every(t => correctKnownSet.has(t)));
+inp.style.border = kwCorrect ? "3px solid green" : "3px solid red";
 					inp.disabled = kwCorrect;
 					if (!kwCorrect) allCorrect = false;
 					
@@ -1598,7 +1622,12 @@
 					const m = val.match(/^(.*?)(?:\s*)(\d+\+?)\s*$/);
 					const typedPrefix = (m ? (m[1] || "").trim() : val).trim();
 					const typedNum = (m ? (m[2] || "").trim() : "");
-					const candidates = keywordSuggestions.filter(kw =>
+					// Prefer an exact match first (e.g. allow "Psychic" without getting stuck on "Anti-Psychic X+")
+					const exact = keywordSuggestions.find(kw =>
+						kw.toLowerCase() === typedPrefix.toLowerCase()
+					);
+
+					const candidates = exact ? [exact] : keywordSuggestions.filter(kw =>
 						kw.toLowerCase().includes(typedPrefix.toLowerCase())
 					);
 					
